@@ -1,0 +1,11 @@
+site_name: Versioned MkDocs Example
+site_description: Demonstrates the versioned-jamstack-examples builder contract.
+
+# site_dir is set at build time via build.sh, not here.
+
+theme:
+  name: mkdocs
+
+nav:
+  - Home: index.md
+  - Guide: guide.md

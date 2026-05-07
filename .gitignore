@@ -1,12 +1,21 @@
 node_modules/
 dist/
 build/
-versions.json
+# Generated merged manifest at repo root only (per-example src/versions.json is tracked).
+/versions.json
 _test_dist/
 
 # VuePress build artifacts
 .vuepress/.temp/
 .vuepress/.cache/
+
+# Astro internal cache
+.astro/
+
+# Python venvs (used by examples/mkdocs and similar)
+.venv/
+__pycache__/
+*.pyc
 
 .DS_Store
 .env

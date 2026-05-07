@@ -68,17 +68,22 @@ Each provider needs a thin wrapper that:
 
 Reference wrappers live under [ci/](ci/). Start with [ci/github-actions.yml](ci/github-actions.yml).
 
-## Roadmap
+## What's here
 
-- [ ] `scripts/build-versions.sh` (portable core)
-- [ ] `schemas/deploy-versions.schema.json`
-- [ ] `ci/github-actions.yml` reference
+- [x] `scripts/build-versions.sh` (portable core, end-to-end tested)
+- [x] `schemas/deploy-versions.schema.json`
+- [x] `ci/github-actions.yml` reference
+- [x] [`examples/vuepress/`](examples/vuepress/) (VuePress 2 with the default theme, verified building both layouts)
+- [x] [`examples/astro/`](examples/astro/) (Astro 4, verified building both layouts)
+- [x] [`examples/mkdocs/`](examples/mkdocs/) (MkDocs, Python runtime, verified building both layouts)
+
+## Wanted
+
 - [ ] `ci/gitlab-ci.yml` reference
-- [ ] `examples/vuepress/`
 - [ ] `examples/docusaurus/`
-- [ ] `examples/astro/`
-- [ ] `examples/mkdocs/`
 - [ ] `examples/next/` (statically exported)
+- [ ] `examples/eleventy/`
+- [ ] `examples/hugo/`
 
 ## Routing conventions
 

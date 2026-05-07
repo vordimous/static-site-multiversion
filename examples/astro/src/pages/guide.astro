@@ -1,0 +1,16 @@
+---
+const versionKey = import.meta.env.PUBLIC_SITE_VERSION_KEY || process.env.SITE_VERSION_KEY || 'next'
+---
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Guide ({versionKey})</title>
+  </head>
+  <body>
+    <h1>Guide</h1>
+    <p>This page exists to give the build more than one route. Version <strong>{versionKey}</strong>.</p>
+    <p><a href="../">Back to home</a></p>
+  </body>
+</html>

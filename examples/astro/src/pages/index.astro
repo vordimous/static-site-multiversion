@@ -1,0 +1,16 @@
+---
+const versionKey = import.meta.env.PUBLIC_SITE_VERSION_KEY || process.env.SITE_VERSION_KEY || 'next'
+---
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Versioned Astro example</title>
+  </head>
+  <body>
+    <h1>Versioned Astro example</h1>
+    <p>You are viewing version <strong>{versionKey}</strong>.</p>
+    <p><a href="guide/">Read the guide</a></p>
+  </body>
+</html>
