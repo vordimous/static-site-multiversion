@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/ajdanelz/versioned-jamstack-examples/schemas/deploy-versions.schema.json",
+  "title": "deploy-versions",
+  "description": "Versions of a Jamstack site to build alongside HEAD. Each entry produces one historical build keyed by its slug.",
+  "type": "array",
+  "items": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": ["key", "tag"],
+    "properties": {
+      "key": {
+        "type": "string",
+        "description": "URL slug for this version. Becomes a path segment in the deployed site and the value of SITE_VERSION_KEY at build time.",
+        "pattern": "^[a-zA-Z0-9._-]+$"
+      },
+      "tag": {
+        "type": "string",
+        "description": "Git ref (tag or branch) to clone for this version's source. Passed to `git clone --depth 1 -b <tag>`.",
+        "minLength": 1
+      },
+      "label": {
+        "type": "string",
+        "description": "Optional human-readable label for the version switcher UI. Defaults to `key` if omitted."
+      }
+    }
+  }
+}
