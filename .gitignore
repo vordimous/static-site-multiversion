@@ -2,6 +2,11 @@ node_modules/
 dist/
 build/
 versions.json
+_test_dist/
+
+# VuePress build artifacts
+.vuepress/.temp/
+.vuepress/.cache/
 
 .DS_Store
 .env
