@@ -12,6 +12,12 @@ _test_dist/
 # Astro internal cache
 .astro/
 
+# Docusaurus build cache
+.docusaurus/
+
+# Hugo build lock
+.hugo_build.lock
+
 # Python venvs (used by examples/mkdocs and similar)
 .venv/
 __pycache__/

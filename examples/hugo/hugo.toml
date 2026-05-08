@@ -1,0 +1,12 @@
+# Hugo config. baseURL and outDir are overridden at build time by build.sh,
+# which reads SITE_VERSION_KEY / SITE_BASE / DIST_DIR from the env.
+
+baseURL = "/"
+title = "Versioned Hugo Example"
+languageCode = "en-us"
+
+# Disable RSS/sitemap to keep output minimal in this example.
+disableKinds = ["RSS", "sitemap", "taxonomy", "term"]
+
+[params]
+  description = "A minimal Hugo site wired to the versioned-jamstack-examples builder contract."

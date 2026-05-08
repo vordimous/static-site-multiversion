@@ -73,17 +73,26 @@ Reference wrappers live under [ci/](ci/). Start with [ci/github-actions.yml](ci/
 - [x] `scripts/build-versions.sh` (portable core, end-to-end tested)
 - [x] `schemas/deploy-versions.schema.json`
 - [x] `ci/github-actions.yml` reference
-- [x] [`examples/vuepress/`](examples/vuepress/) (VuePress 2 with the default theme, verified building both layouts)
-- [x] [`examples/astro/`](examples/astro/) (Astro 4, verified building both layouts)
-- [x] [`examples/mkdocs/`](examples/mkdocs/) (MkDocs, Python runtime, verified building both layouts)
+
+Six builder examples, each verified building both URL layouts locally:
+
+| Example | Runtime | Notable for |
+| --- | --- | --- |
+| [`examples/vuepress/`](examples/vuepress/) | Node | Vue-based docs, the source pattern |
+| [`examples/astro/`](examples/astro/) | Node | General-purpose, content-collections |
+| [`examples/docusaurus/`](examples/docusaurus/) | Node (React) | React-based docs (Meta) |
+| [`examples/eleventy/`](examples/eleventy/) | Node | Minimal SSG, no shell wrapper needed |
+| [`examples/hugo/`](examples/hugo/) | Go | Single binary, fastest builds |
+| [`examples/mkdocs/`](examples/mkdocs/) | Python | Cross-runtime proof of portability |
 
 ## Wanted
 
 - [ ] `ci/gitlab-ci.yml` reference
-- [ ] `examples/docusaurus/`
-- [ ] `examples/next/` (statically exported)
-- [ ] `examples/eleventy/`
-- [ ] `examples/hugo/`
+- [ ] `examples/next/` (Next.js with statically exported `output: 'export'`)
+- [ ] `examples/nuxt/` (Nuxt with `nuxt generate`)
+- [ ] `examples/sveltekit/` (SvelteKit with adapter-static)
+- [ ] `examples/sphinx/` (Python docs, alternative to MkDocs)
+- [ ] `examples/jekyll/` (Ruby, classic GitHub Pages)
 
 ## Routing conventions
 
