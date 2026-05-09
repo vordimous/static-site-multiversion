@@ -1,6 +1,8 @@
 # Keep .git so the multi-stage build can clone historical demo-* refs.
 
 .demo
+.cache
+tmp
 **/node_modules
 **/.vuepress/.temp
 **/.vuepress/.cache

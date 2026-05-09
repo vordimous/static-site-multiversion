@@ -179,8 +179,11 @@ copy_switcher "$NEXT_KEY"
 
 # 4. Publish the canonical (merged) versions.json so runtime/hybrid switcher
 #    shims in any version can fetch ../versions.json and discover the full
-#    list, including versions added after their own build was cached.
+#    list, including versions added after their own build was cached. chmod
+#    explicitly because mktemp's 600 default would otherwise propagate
+#    through cp and nginx (running as a non-root user) would 403 the file.
 cp "$MERGED_MANIFEST" "$canonical_prefix/versions.json"
+chmod 644 "$canonical_prefix/versions.json"
 echo "build-versions: canonical manifest at $canonical_prefix/versions.json"
 
 echo "build-versions: done. output in $DIST_DIR"
