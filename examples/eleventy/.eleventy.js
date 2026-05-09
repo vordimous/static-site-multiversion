@@ -1,18 +1,15 @@
-// Wires the static-site-multiversion builder contract into Eleventy 3.
+// Wires the static-site-multiversion builder contract into Eleventy 2.
 //
 // Inputs (env, set by scripts/build-versions.sh):
 //   SITE_VERSION_KEY  version slug being built
 //   SITE_BASE         optional URL path prefix
 //   DIST_DIR          shared output root for all versions
 //
-// Eleventy supports both `pathPrefix` (URL prefix used when generating links
-// via the `url` filter) and `dir.output` natively, so no shell wrapper is
-// needed; the config reads env directly and returns the right values.
+// Eleventy 2 ships CommonJS-only config; this file is the v2-era spelling
+// (.eleventy.js + module.exports). Eleventy 3's ESM config under
+// eleventy.config.js is the eleventy-v3 tag.
 
-import path from 'node:path'
-import { fileURLToPath } from 'node:url'
-
-const __dirname = path.dirname(fileURLToPath(import.meta.url))
+const path = require('node:path')
 
 const versionKey = process.env.SITE_VERSION_KEY || 'next'
 const siteBase = process.env.SITE_BASE || ''
@@ -22,18 +19,18 @@ const pathSegments = [siteBase, versionKey].filter(Boolean)
 const pathPrefix = `/${pathSegments.join('/')}/`
 const outputDir = path.join(distDir, ...pathSegments)
 
-export default function (eleventyConfig) {
+module.exports = function (eleventyConfig) {
   eleventyConfig.addGlobalData('siteVersionKey', versionKey)
   eleventyConfig.addGlobalData('pathPrefix', pathPrefix)
-}
 
-export const config = {
-  pathPrefix,
-  dir: {
-    input: 'src',
-    output: outputDir,
-    includes: '_includes',
-  },
-  markdownTemplateEngine: 'njk',
-  htmlTemplateEngine: 'njk',
+  return {
+    pathPrefix,
+    dir: {
+      input: 'src',
+      output: outputDir,
+      includes: '_includes',
+    },
+    markdownTemplateEngine: 'njk',
+    htmlTemplateEngine: 'njk',
+  }
 }
