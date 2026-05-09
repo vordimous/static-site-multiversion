@@ -1,5 +1,5 @@
 [
-  { "key": "0.9", "tag": "demo-v0.9", "label": "0.9" },
-  { "key": "1.0", "tag": "demo-v1.0", "label": "1.0" },
+  { "key": "0.9", "tag": "demo-v0.9.1", "label": "0.9" },
+  { "key": "1.0", "tag": "demo-v1.0.1", "label": "1.0" },
   { "key": "unstable", "tag": "demo-unstable", "label": "unstable (branch)" }
 ]
