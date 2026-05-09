@@ -8,7 +8,7 @@ The most useful contribution is a new builder example. Each one demonstrates how
 2. Wire `SITE_VERSION_KEY`, optional `SITE_BASE`, and `DIST_DIR` from environment variables into whichever options control the generator's output directory and URL prefix. The end result must be that the build writes to `$DIST_DIR/[$SITE_BASE/]$SITE_VERSION_KEY/` with internal links and asset URLs that work when deployed under that path.
 3. Verify locally by running the build twice: once with `SITE_VERSION_KEY=next` and no `SITE_BASE`, once with both `SITE_VERSION_KEY` and `SITE_BASE` set. Confirm the output paths match the contract in both cases.
 4. Add an `examples/<builder>/README.md` that documents the wiring, the build command, and any quirks of the generator (for example, MkDocs needs a wrapper script because it doesn't read env vars natively).
-5. Update the top-level `README.md` to list the new example under "What's here" and remove it from "Wanted" if applicable.
+5. Update the top-level `README.md` to list the new example under "Worked examples" and remove it from "Wanted" if applicable.
 
 ## Adding a CI provider example
 

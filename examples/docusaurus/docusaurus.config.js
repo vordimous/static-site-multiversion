@@ -1,4 +1,4 @@
-// Wires the versioned-jamstack-examples builder contract into Docusaurus 3.
+// Wires the static-site-multiversion builder contract into Docusaurus 3.
 //
 // Inputs (env, set by scripts/build-versions.sh):
 //   SITE_VERSION_KEY  version slug being built
@@ -22,8 +22,8 @@ const config = {
   favicon: 'img/favicon.ico',
   url: 'https://example.com',
   baseUrl,
-  organizationName: 'ajdanelz',
-  projectName: 'versioned-jamstack-examples',
+  organizationName: 'vordimous',
+  projectName: 'static-site-multiversion',
   onBrokenLinks: 'warn',
   markdown: {
     hooks: {

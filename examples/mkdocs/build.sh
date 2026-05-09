@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Wires the versioned-jamstack-examples builder contract into MkDocs.
+# Wires the static-site-multiversion builder contract into MkDocs.
 #
 # MkDocs reads its config from mkdocs.yml and doesn't natively read env vars,
 # so this thin wrapper maps SITE_VERSION_KEY / SITE_BASE / DIST_DIR onto the

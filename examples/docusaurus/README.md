@@ -1,6 +1,6 @@
 # Docusaurus example
 
-A minimal Docusaurus 3 site (classic preset) that honors the [versioned-jamstack-examples](../../README.md) builder contract.
+A minimal Docusaurus 3 site (classic preset) that honors the [static-site-multiversion](../../README.md) builder contract.
 
 ## How the contract is wired
 

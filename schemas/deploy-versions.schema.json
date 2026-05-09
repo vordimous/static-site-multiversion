@@ -1,8 +1,8 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://github.com/ajdanelz/versioned-jamstack-examples/schemas/deploy-versions.schema.json",
+  "$id": "https://github.com/vordimous/static-site-multiversion/schemas/deploy-versions.schema.json",
   "title": "deploy-versions",
-  "description": "Versions of a Jamstack site to build alongside HEAD. Each entry produces one historical build keyed by its slug.",
+  "description": "Versions of a static site to build alongside HEAD. Each entry produces one historical build keyed by its slug.",
   "type": "array",
   "items": {
     "type": "object",

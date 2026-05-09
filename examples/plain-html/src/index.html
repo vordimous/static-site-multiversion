@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Plain HTML Example</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    body { font-family: system-ui, sans-serif; max-width: 40rem; margin: 2rem auto; padding: 0 1rem; }
+    nav { margin-bottom: 1rem; }
+    #version-switcher { margin-top: 1rem; }
+  </style>
+</head>
+<body>
+  <nav><a href="./guide.html">Guide</a></nav>
+  <h1>Plain HTML Example</h1>
+  <p>This site is built using the <a href="https://github.com/vordimous/static-site-multiversion">static-site-multiversion</a> builder contract. There is no generator. The build is <code>cp</code>.</p>
+  <p>Every other example in this repo is a real static-site generator doing the same thing under more layers. This one is the contract, distilled.</p>
+  <div id="version-switcher"></div>
+  <script src="./switcher.js" defer></script>
+</body>
+</html>

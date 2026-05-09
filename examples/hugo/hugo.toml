@@ -9,4 +9,4 @@ languageCode = "en-us"
 disableKinds = ["RSS", "sitemap", "taxonomy", "term"]
 
 [params]
-  description = "A minimal Hugo site wired to the versioned-jamstack-examples builder contract."
+  description = "A minimal Hugo site wired to the static-site-multiversion builder contract."

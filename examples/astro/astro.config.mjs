@@ -1,4 +1,4 @@
-// Wires the versioned-jamstack-examples builder contract into Astro.
+// Wires the static-site-multiversion builder contract into Astro.
 //
 // Inputs (env, set by scripts/build-versions.sh):
 //   SITE_VERSION_KEY  version slug being built

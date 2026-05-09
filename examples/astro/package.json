@@ -1,5 +1,5 @@
 {
-  "name": "versioned-jamstack-example-astro",
+  "name": "static-site-multiversion-example-astro",
   "version": "0.1.0",
   "private": true,
   "type": "module",

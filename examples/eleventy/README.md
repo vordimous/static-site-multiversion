@@ -1,6 +1,6 @@
 # Eleventy example
 
-A minimal Eleventy 3 site that honors the [versioned-jamstack-examples](../../README.md) builder contract.
+A minimal Eleventy 3 site that honors the [static-site-multiversion](../../README.md) builder contract.
 
 This is the lightest-weight Node example — Eleventy supports the contract natively, no shell wrapper required.
 

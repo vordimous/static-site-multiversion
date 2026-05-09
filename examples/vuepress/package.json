@@ -1,5 +1,5 @@
 {
-  "name": "versioned-jamstack-example-vuepress",
+  "name": "static-site-multiversion-example-vuepress",
   "version": "0.1.0",
   "private": true,
   "type": "module",

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Wires the versioned-jamstack-examples builder contract into Hugo.
+# Wires the static-site-multiversion builder contract into Hugo.
 #
 # Hugo accepts both --baseURL and --destination as CLI flags, so this wrapper
 # reads SITE_VERSION_KEY / SITE_BASE / DIST_DIR from the env and passes them

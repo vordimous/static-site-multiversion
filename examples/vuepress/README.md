@@ -1,6 +1,6 @@
 # VuePress example
 
-A minimal VuePress 2 site that honors the [versioned-jamstack-examples](../../README.md) builder contract.
+A minimal VuePress 2 site that honors the [static-site-multiversion](../../README.md) builder contract.
 
 ## How the contract is wired
 

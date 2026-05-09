@@ -5,6 +5,6 @@ title: Versioned Eleventy Example
 
 # Versioned Eleventy Example
 
-This site is built using the [versioned-jamstack-examples](https://github.com/ajdanelz/versioned-jamstack-examples) builder contract. Current version: **{{ siteVersionKey }}**.
+This site is built using the [static-site-multiversion](https://github.com/vordimous/static-site-multiversion) builder contract. Current version: **{{ siteVersionKey }}**.
 
 [Read the guide]({{ "/guide/" | url }})

@@ -1,5 +1,5 @@
 {
-  "name": "versioned-jamstack-example-eleventy",
+  "name": "static-site-multiversion-example-eleventy",
   "version": "0.1.0",
   "private": true,
   "type": "module",

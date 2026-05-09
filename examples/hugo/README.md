@@ -1,6 +1,6 @@
 # Hugo example
 
-A minimal Hugo site that honors the [versioned-jamstack-examples](../../README.md) builder contract.
+A minimal Hugo site that honors the [static-site-multiversion](../../README.md) builder contract.
 
 This example demonstrates the contract working in a third runtime (Go) on top of Node and Python — the orchestrator script is unchanged; only the example's wrapper differs.
 

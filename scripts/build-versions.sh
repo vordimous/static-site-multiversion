@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Portable multi-version Jamstack build orchestrator.
+# Portable multi-version static site build orchestrator.
 #
 # Builds the current repo at HEAD as `next`, plus one historical version per
 # entry in deploy-versions.json. All output lands in $DIST_DIR under per-version

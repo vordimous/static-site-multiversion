@@ -1,5 +1,5 @@
 {
-  "name": "versioned-jamstack-example-docusaurus",
+  "name": "static-site-multiversion-example-docusaurus",
   "version": "0.1.0",
   "private": true,
   "scripts": {

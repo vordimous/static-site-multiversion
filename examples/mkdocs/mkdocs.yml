@@ -1,5 +1,5 @@
 site_name: Versioned MkDocs Example
-site_description: Demonstrates the versioned-jamstack-examples builder contract.
+site_description: Demonstrates the static-site-multiversion builder contract.
 
 # site_dir is set at build time via build.sh, not here.
 

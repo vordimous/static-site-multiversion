@@ -1,6 +1,6 @@
 # MkDocs example
 
-A minimal MkDocs site that honors the [versioned-jamstack-examples](../../README.md) builder contract.
+A minimal MkDocs site that honors the [static-site-multiversion](../../README.md) builder contract.
 
 This example demonstrates that the contract is not Node-specific: the same env vars wire into a Python build with no changes to the orchestrator.
 

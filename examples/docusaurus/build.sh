@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Wires the versioned-jamstack-examples builder contract into Docusaurus.
+# Wires the static-site-multiversion builder contract into Docusaurus.
 #
 # Docusaurus reads baseUrl from docusaurus.config.js (which itself reads
 # SITE_VERSION_KEY / SITE_BASE from env) but the output directory must be

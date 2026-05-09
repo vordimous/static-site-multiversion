@@ -8,4 +8,4 @@ actions:
     type: primary
 ---
 
-This site is built using the [versioned-jamstack-examples](https://github.com/ajdanelz/versioned-jamstack-examples) build contract. The current version is set at build time via the `SITE_VERSION_KEY` environment variable.
+This site is built using the [static-site-multiversion](https://github.com/vordimous/static-site-multiversion) build contract. The current version is set at build time via the `SITE_VERSION_KEY` environment variable.

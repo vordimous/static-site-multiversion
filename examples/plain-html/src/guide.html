@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Guide — Plain HTML Example</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    body { font-family: system-ui, sans-serif; max-width: 40rem; margin: 2rem auto; padding: 0 1rem; }
+    nav { margin-bottom: 1rem; }
+    #version-switcher { margin-top: 1rem; }
+  </style>
+</head>
+<body>
+  <nav><a href="./index.html">Home</a></nav>
+  <h1>Guide</h1>
+  <p>The contract has three parts: <code>deploy-versions.json</code> at the repo root, two env vars (<code>SITE_VERSION_KEY</code> and <code>DIST_DIR</code>), and a writeout convention (<code>$DIST_DIR/[$SITE_BASE/]$SITE_VERSION_KEY/</code>).</p>
+  <p>Look at <code>build.sh</code> in this directory. The whole thing is twelve lines.</p>
+  <div id="version-switcher"></div>
+  <script src="./switcher.js" defer></script>
+</body>
+</html>

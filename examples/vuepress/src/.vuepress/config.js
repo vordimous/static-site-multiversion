@@ -1,4 +1,4 @@
-// Wires the versioned-jamstack-examples builder contract into VuePress.
+// Wires the static-site-multiversion builder contract into VuePress.
 //
 // Inputs (env, set by scripts/build-versions.sh):
 //   SITE_VERSION_KEY  version slug being built (e.g. "next", "0.9")
@@ -33,7 +33,7 @@ export default defineUserConfig({
   title: 'Versioned VuePress Example',
   description: `Docs at version ${versionKey}`,
   theme: defaultTheme({
-    repo: 'ajdanelz/versioned-jamstack-examples',
+    repo: 'vordimous/static-site-multiversion',
     navbar: [
       { text: 'Home', link: '/' },
       { text: 'Guide', link: '/guide/' },
