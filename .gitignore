@@ -7,12 +7,12 @@ build/
 _test_dist/
 
 # VuePress build artifacts
-.vuepress/.temp/
-.vuepress/.cache/
+**/.vuepress/.temp/
+**/.vuepress/.cache/
 
 # VitePress build artifacts
-.vitepress/cache/
-.vitepress/dist/
+**/.vitepress/cache/
+**/.vitepress/dist/
 
 # Astro internal cache
 .astro/

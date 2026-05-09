@@ -1,1 +1,0 @@
-export const siteData = JSON.parse("{\"base\":\"/vuepress/next/\",\"lang\":\"en-US\",\"title\":\"Versioned VuePress Example\",\"description\":\"Docs at version next\",\"head\":[],\"locales\":{\"/\":{\"lang\":\"en-US\",\"title\":\"Versioned VuePress Example\",\"description\":\"Docs at version next\"}}}")
