@@ -45,6 +45,19 @@ A flat JSON array of versions to build alongside HEAD:
 
 `key` is the URL slug under which the version is served. `tag` is the git ref to clone. See [schemas/deploy-versions.schema.json](schemas/deploy-versions.schema.json).
 
+#### Patch-version tags
+
+Because `key` and `tag` are decoupled, you can ship a fix to an older version without changing the slug anyone has bookmarked. Tag the patched commit (e.g. `0.9.1`) and update `deploy-versions.json` so the `0.9` slug now resolves to it:
+
+```json
+[
+  { "key": "0.9", "tag": "0.9.1" },
+  { "key": "1.0", "tag": "1.0.2" }
+]
+```
+
+The version dropdown still shows `0.9` and `1.0`. Deep links to `/0.9/...` keep working. The build comes from the latest patch tag. Useful when you need to backport a typo fix, add a new section, or, in this repo's own demo, retroactively include a new builder example in older docs (`demo-v0.9.1` adds vitepress to `demo-v0.9`'s tree without inventing a new slug).
+
 ### 2. The version-switcher manifest
 
 Whatever your site reads at build time to render its version dropdown. Default location: `src/versions.json`. The orchestration generates it by merging your site's own list with `deploy-versions.json` and copies it into each historical clone before that clone builds.
