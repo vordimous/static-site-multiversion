@@ -1,13 +1,14 @@
-// Wires the static-site-multiversion builder contract into Docusaurus 3.
+// Wires the static-site-multiversion builder contract into Docusaurus 2.
 //
 // Inputs (env, set by scripts/build-versions.sh):
 //   SITE_VERSION_KEY  version slug being built
 //   SITE_BASE         optional URL path prefix
 //   DIST_DIR          shared output root (used by build.sh, not here)
 //
-// Docusaurus reads `baseUrl` from the config; the output directory is set via
-// the CLI flag `--out-dir` in build.sh, since it can't be derived from env at
-// config-evaluation time without a wrapper.
+// Docusaurus 2 uses MDX 1, top-level onBrokenMarkdownLinks (no markdown.hooks
+// nesting), and ships with the React-classic preset on Webpack 5. The v3
+// upgrade moved markdown options under `markdown.hooks` and switched MDX 3
+// on by default.
 
 const versionKey = process.env.SITE_VERSION_KEY || 'next'
 const siteBase = process.env.SITE_BASE || ''
@@ -25,11 +26,7 @@ const config = {
   organizationName: 'vordimous',
   projectName: 'static-site-multiversion',
   onBrokenLinks: 'warn',
-  markdown: {
-    hooks: {
-      onBrokenMarkdownLinks: 'warn',
-    },
-  },
+  onBrokenMarkdownLinks: 'warn',
   i18n: { defaultLocale: 'en', locales: ['en'] },
   presets: [
     [
@@ -38,10 +35,10 @@ const config = {
       {
         docs: {
           routeBasePath: '/',
-          sidebarPath: './sidebars.js',
+          sidebarPath: require.resolve('./sidebars.js'),
         },
         blog: false,
-        theme: { customCss: './src/css/custom.css' },
+        theme: { customCss: require.resolve('./src/css/custom.css') },
       },
     ],
   ],
