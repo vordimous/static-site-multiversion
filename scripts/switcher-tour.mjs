@@ -27,7 +27,7 @@ const BUILDERS = [
   { name: 'eleventy',   mode: 'hybrid', bolted: true },
   { name: 'hugo',       mode: 'runtime', bolted: true },
   { name: 'astro',      mode: 'runtime', bolted: true },
-  { name: 'mkdocs',     mode: 'baked',   bolted: true },
+  { name: 'mkdocs',     mode: 'baked',   native: { trigger: 'a.dropdown-toggle', item: '.dropdown-menu a.dropdown-item' } },
   { name: 'vitepress',  mode: 'hybrid',  native: { trigger: '.vp-version-menu .trigger', item: '.vp-version-menu .item' } },
   { name: 'vuepress',   mode: 'baked',   native: { trigger: 'button.vp-navbar-dropdown-title', item: 'ul.vp-navbar-dropdown a' } },
   { name: 'docusaurus', mode: 'baked',   native: { trigger: '.navbar__items--right .dropdown > .navbar__link', item: '.dropdown__menu .dropdown__link' } },

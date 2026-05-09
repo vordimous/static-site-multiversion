@@ -2,14 +2,14 @@ site_name: Versioned MkDocs Example
 site_description: Demonstrates the static-site-multiversion builder contract.
 
 # site_dir is set at build time via build.sh, not here.
+#
+# The `nav:` section below is the development-time fallback. At build time,
+# build.sh replaces it with a regenerated block that adds a "Versions"
+# dropdown built from $DEPLOY_VERSIONS — see the appended block written
+# into the temp config.
 
 theme:
   name: mkdocs
-
-# Loaded by every page; injects the version-switcher mount + shim include
-# at runtime. data-mode="baked" demonstrates the static-snapshot mode.
-extra_javascript:
-  - switcher-inject.js
 
 nav:
   - Home: index.md

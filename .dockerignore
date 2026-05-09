@@ -4,6 +4,8 @@
 .cache
 tmp
 **/node_modules
+# Per-build mkdocs config emitted by examples/mkdocs/build.sh
+**/.mkdocs-versioned.yml
 **/.vuepress/.temp
 **/.vuepress/.cache
 **/.astro

@@ -8,6 +8,9 @@ tmp/
 /versions.json
 _test_dist/
 
+# Per-build mkdocs config emitted by examples/mkdocs/build.sh
+**/.mkdocs-versioned.yml
+
 # VuePress build artifacts
 **/.vuepress/.temp/
 **/.vuepress/.cache/
