@@ -1,0 +1,53 @@
+#!/usr/bin/env bash
+#
+# Drives Playwright's bundled chromium against a URL or path and writes the
+# screenshot somewhere we can read it back.
+#
+# Usage:
+#   scripts/screenshot.sh /vitepress/0.9/                      # path on localhost:8080
+#   scripts/screenshot.sh http://localhost:8080/eleventy/v3/   # full URL
+#   scripts/screenshot.sh /astro/next/ tmp/astro-next.png      # custom output path
+#
+# Optional env:
+#   BASE       base URL when the first arg is a path (default: http://localhost:8080)
+#   FULL_PAGE  set to 1 to capture the full scroll height
+#   NO_JS      set to 1 to render with JavaScript disabled
+
+set -euo pipefail
+
+REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+cd "$REPO_ROOT"
+
+[ "$#" -ge 1 ] || { echo "usage: $0 <path-or-url> [output.png]" >&2; exit 2; }
+
+target="$1"
+out="${2:-tmp/shot-$(date +%s).png}"
+base="${BASE:-http://localhost:8080}"
+
+case "$target" in
+  http://*|https://*) url="$target" ;;
+  *)                  url="${base%/}/${target#/}" ;;
+esac
+
+mkdir -p "$(dirname "$out")"
+
+# Inline JS reads vars from process.env; literal expressions inside the
+# single-quoted block intentionally do not expand at the shell layer.
+# shellcheck disable=SC2016
+FULL_PAGE="${FULL_PAGE:-0}" NO_JS="${NO_JS:-0}" \
+URL="$url" OUT="$out" \
+  node --input-type=module -e '
+    import { chromium } from "playwright";
+    const { URL: u, OUT: out, FULL_PAGE, NO_JS } = process.env;
+    const browser = await chromium.launch();
+    const ctx = await browser.newContext({ javaScriptEnabled: NO_JS !== "1" });
+    const page = await ctx.newPage();
+    const resp = await page.goto(u, { waitUntil: "networkidle" });
+    if (!resp || !resp.ok()) {
+      console.error(`screenshot: ${u} returned ${resp ? resp.status() : "no response"}`);
+      process.exit(1);
+    }
+    await page.screenshot({ path: out, fullPage: FULL_PAGE === "1" });
+    console.log(`screenshot: wrote ${out} (${u})`);
+    await browser.close();
+  '
