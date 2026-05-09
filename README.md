@@ -58,9 +58,36 @@ Because `key` and `tag` are decoupled, you can ship a fix to an older version wi
 
 The version dropdown still shows `0.9` and `1.0`. Deep links to `/0.9/...` keep working. The build comes from the latest patch tag. Useful when you need to backport a typo fix, add a new section, or, in this repo's own demo, retroactively include a new builder example in older docs (`demo-v0.9.1` adds vitepress to `demo-v0.9`'s tree without inventing a new slug).
 
+Patch tags pair especially well with the **runtime** and **hybrid** switcher modes: the dropdown in already-cached old versions reflects the new patch list as soon as the canonical `versions.json` is republished, with no rebuild.
+
 ### 2. The version-switcher manifest
 
-Whatever your site reads at build time to render its version dropdown. Default location: `src/versions.json`. The orchestration generates it by merging your site's own list with `deploy-versions.json` and copies it into each historical clone before that clone builds.
+Each example commits a `src/versions.json` (the **seed**) that snapshots whatever versions were known at build time. This is what the page can render synchronously without any network access — the noscript-friendly fallback.
+
+After every per-version build finishes, the orchestrator publishes the **canonical** merged list (deploy-versions + a `next` entry for HEAD) at `$DIST_DIR/[$SITE_BASE/]versions.json`. The version-switcher shim fetches this file at runtime so old versions can discover newer ones added after their own build was cached.
+
+#### Switcher modes
+
+The shared shim at [scripts/switcher.js](scripts/switcher.js) supports three modes via `data-mode` on its mount element:
+
+| Mode | Behavior | Use when |
+| --- | --- | --- |
+| `baked` | Render only from the inline JSON seed at build time. No fetch. | You want old versions frozen — historical docs never auto-discover new releases. |
+| `runtime` | Ignore the seed. Fetch the canonical list and render from that. Show the `data-fallback` "View all versions" link if the fetch fails. | You always want the live list, accept that JS is required. |
+| `hybrid` | Render the seed first (works without network), then fetch the canonical list and replace the dropdown if it differs. Falls back to the seed on fetch failure. | Default. Best of both — works offline, updates live. |
+
+Mount template:
+
+```html
+<div id="version-switcher" data-mode="hybrid" data-fallback="../next/">
+  <script type="application/json" id="version-switcher-seed">[{"key":"current","label":"current"}]</script>
+</div>
+<script src="./switcher.js" defer></script>
+```
+
+`data-canonical="/<base>/versions.json"` and `data-fallback="/<base>/next/"` accept absolute URLs for nested pages where relative paths break.
+
+The orchestrator copies `scripts/switcher.js` into every per-version output directory so each version's `<script src="./switcher.js">` resolves locally — no per-example asset wiring required.
 
 ### 3. The builder contract
 
@@ -112,11 +139,27 @@ Doing this naively means a separate site per version with manual cross-linking. 
 
 Each provider needs a thin wrapper that:
 
-1. Caches `$DIST_DIR` keyed by `hash(deploy-versions.json)`. Historical builds are immutable, so a cache hit skips them entirely and only HEAD rebuilds.
+1. Restores the SHA-keyed artifact cache (see below).
 2. Runs `scripts/build-versions.sh`.
-3. Uploads or deploys `$DIST_DIR`.
+3. Saves the cache.
+4. Uploads or deploys `$DIST_DIR`.
 
 Reference wrappers live under [ci/](ci/). Start with [ci/github-actions.yml](ci/github-actions.yml).
+
+### SHA-keyed artifact cache
+
+Set `CACHE_DIR=/some/path` and `scripts/build-versions.sh` will, for each entry in `deploy-versions.json`:
+
+1. Resolve the tag's commit SHA via `git ls-remote`.
+2. Look for `$CACHE_DIR/<sha>/<key>/index.html`.
+3. **Cache hit** → restore that directory into `$DIST_DIR/[$SITE_BASE/]<key>/`. Skip clone + build entirely.
+4. **Cache miss** → clone, build, copy result into the cache.
+
+`HEAD` (the `next` build) and any moving branch tip always rebuild because their commit SHAs change every time. Tags never move, so once built they're cached forever.
+
+In `actions/cache@v4`, key the cache on the repo + a manual bump: the SHA is in the path so per-tag keys aren't needed. To bust the cache, delete `$CACHE_DIR/<sha>/`.
+
+Combined with the runtime switcher, this lets you ship updates to `next` without touching any historical version's static output, and add a brand-new tag without rebuilding any prior tag's output.
 
 ## Routing conventions
 

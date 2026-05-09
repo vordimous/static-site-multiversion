@@ -9,15 +9,16 @@ The most useful contribution is a new builder example. Each one demonstrates how
 3. Verify locally by running the build twice: once with `SITE_VERSION_KEY=next` and no `SITE_BASE`, once with both `SITE_VERSION_KEY` and `SITE_BASE` set. Confirm the output paths match the contract in both cases.
 4. Add an `examples/<builder>/README.md` that documents the wiring, the build command, and any quirks of the generator (for example, MkDocs needs a wrapper script because it doesn't read env vars natively).
 5. Add an `examples/<builder>/deploy-versions.json` file (start with `[]`). This is the per-builder version axis used by `scripts/demo-all.sh`; populate it with this builder's own real generator-version tags (e.g. `eleventy-v3`, `hugo-v0-145`) when those tags exist.
-6. Update the top-level `README.md` to list the new example under "Worked examples" and remove it from "Wanted" if applicable.
+6. Wire the version-switcher mount into the example's templates: a `<div id="version-switcher" data-mode="..." data-fallback="../next/">` containing an inline `<script type="application/json" id="version-switcher-seed">` snapshot of `src/versions.json`, plus a `<script src="./switcher.js" defer></script>` reference. Pick `baked` / `runtime` / `hybrid` per the [README's switcher modes](README.md#switcher-modes). The orchestrator copies `scripts/switcher.js` into every per-version output dir, so you don't need to ship one yourself.
+7. Update the top-level `README.md` to list the new example under "Worked examples" and remove it from "Wanted" if applicable.
 
 ## Adding a CI provider example
 
 `ci/<provider>.yml` (or whatever extension fits) should be a thin wrapper that does three things:
 
-1. Caches `$DIST_DIR` keyed on `hash(deploy-versions.json)`. Historical builds are immutable so a cache hit lets the workflow skip them.
+1. Restores the SHA-keyed cache at `$CACHE_DIR` (see [README → SHA-keyed artifact cache](README.md#sha-keyed-artifact-cache)). Historical builds are immutable, so a cache hit at the tag's SHA lets the orchestrator skip the clone + build for that key entirely.
 2. Invokes `scripts/build-versions.sh` with whatever toolchain setup the chosen example builders need.
-3. Uploads or deploys `$DIST_DIR` to the provider's static-host of choice.
+3. Saves the cache and uploads or deploys `$DIST_DIR` to the provider's static-host of choice.
 
 Keep wrappers minimal. Logic that isn't provider-specific belongs in `scripts/build-versions.sh`, not duplicated across CI files.
 
