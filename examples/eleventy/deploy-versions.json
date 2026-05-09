@@ -1,1 +1,4 @@
-[]
+[
+  { "key": "v2", "tag": "eleventy-v2", "label": "Eleventy v2 (CJS)" },
+  { "key": "v3", "tag": "eleventy-v3", "label": "Eleventy v3 (ESM)" }
+]
