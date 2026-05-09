@@ -10,6 +10,10 @@ _test_dist/
 .vuepress/.temp/
 .vuepress/.cache/
 
+# VitePress build artifacts
+.vitepress/cache/
+.vitepress/dist/
+
 # Astro internal cache
 .astro/
 

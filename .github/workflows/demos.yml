@@ -41,6 +41,10 @@ jobs:
             install: 'npm ci'
             build: 'npm run build'
             runtime: node
+          - builder: vitepress
+            install: 'npm ci'
+            build: 'npm run build'
+            runtime: node
           - builder: astro
             install: 'npm ci'
             build: 'npm run build'
@@ -147,6 +151,7 @@ jobs:
             <ul>
               <li><a href="./plain-html/next/">plain HTML</a> — the contract distilled. The build is <code>cp</code>.</li>
               <li><a href="./vuepress/next/">VuePress</a> — Vue-based docs.</li>
+              <li><a href="./vitepress/next/">VitePress</a> — Vite-powered, Vue 3 docs.</li>
               <li><a href="./astro/next/">Astro</a> — general-purpose, content collections.</li>
               <li><a href="./docusaurus/next/">Docusaurus</a> — React-based docs.</li>
               <li><a href="./eleventy/next/">Eleventy</a> — minimal SSG, no shell wrapper.</li>

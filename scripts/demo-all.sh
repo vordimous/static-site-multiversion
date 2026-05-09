@@ -31,7 +31,7 @@ SERVE_ROOT="$REPO_ROOT/.demo/_serve"
 [ -f "$DEPLOY_VERSIONS_FILE" ] || { echo "demo-all: $DEPLOY_VERSIONS_FILE not found" >&2; exit 1; }
 [ -x "$ORCHESTRATOR" ]         || { echo "demo-all: $ORCHESTRATOR not executable" >&2; exit 1; }
 
-ALL_BUILDERS=(plain-html vuepress astro docusaurus eleventy hugo mkdocs)
+ALL_BUILDERS=(plain-html vuepress vitepress astro docusaurus eleventy hugo mkdocs)
 
 if [ "$#" -gt 0 ]; then
   TARGETS=("$@")
@@ -40,8 +40,10 @@ else
 fi
 
 # Wipe the shared docroot once at the start; each builder appends to it.
-rm -rf "$SERVE_ROOT"
+# Clear contents in place rather than rm -rf-ing the dir so an attached
+# nginx bind mount (scripts/demo-serve.sh) doesn't lose its inode.
 mkdir -p "$SERVE_ROOT"
+find "$SERVE_ROOT" -mindepth 1 -delete
 
 RAN=()
 SKIPPED=()
@@ -69,6 +71,22 @@ run_builder() {
   else
     cp "$DEPLOY_VERSIONS_FILE" "$merged_deploy"
   fi
+
+  # Drop refs that don't actually contain examples/<builder>/. Lets newer
+  # builders (added after the global demo-* tags were cut) coexist with the
+  # global axis without failing the historical builds.
+  local filtered_deploy
+  filtered_deploy="$(mktemp)"
+  jq -c '.[]' "$merged_deploy" | while IFS= read -r entry; do
+    local tag
+    tag="$(printf '%s' "$entry" | jq -r '.tag')"
+    if git -C "$REPO_ROOT" cat-file -e "${tag}:examples/${builder}" 2>/dev/null; then
+      printf '%s\n' "$entry"
+    else
+      echo "demo-all: $builder: dropping ref '$tag' (examples/$builder/ missing at that ref)" >&2
+    fi
+  done | jq -s '.' > "$filtered_deploy"
+  mv "$filtered_deploy" "$merged_deploy"
 
   # The orchestrator overwrites $manifest in-place during the HEAD build so
   # generators read the merged switcher list. Snapshot and restore so re-runs
@@ -121,6 +139,13 @@ dispatch() {
         "(cd examples/vuepress && npm install --silent)" \
         "(cd examples/vuepress && npm run build)" \
         "examples/vuepress/src/versions.json"
+      ;;
+    vitepress)
+      command -v node >/dev/null || { skip_builder vitepress "node not installed"; return; }
+      run_builder vitepress \
+        "(cd examples/vitepress && npm install --silent)" \
+        "(cd examples/vitepress && npm run build)" \
+        "examples/vitepress/src/versions.json"
       ;;
     astro)
       command -v node >/dev/null || { skip_builder astro "node not installed"; return; }

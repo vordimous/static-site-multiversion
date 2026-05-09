@@ -2,7 +2,7 @@
 
 A portable contract for building multi-version static sites from git tags, generator-agnostic. The live site contains the current `next` version at HEAD plus an arbitrary number of historical versions built from their original tags, merged into one deploy directory with a shared version switcher.
 
-**The env-var protocol is the standard; the bash script is one reference implementation.** Any builder that honors three things (a `deploy-versions.json` file, two env vars, and an output convention) plugs in. This repo ships seven worked examples (plain HTML plus six SSGs across three runtimes) as evidence that the contract holds.
+**The env-var protocol is the standard; the bash script is one reference implementation.** Any builder that honors three things (a `deploy-versions.json` file, two env vars, and an output convention) plugs in. This repo ships eight worked examples (plain HTML plus seven SSGs across three runtimes) as evidence that the contract holds.
 
 > AI-assisted: I distilled this pattern from an existing VuePress workflow (Aklivity's [zilla-docs](https://github.com/aklivity/zilla-docs)) and used Claude to help draft the portable script, schema, and documentation. All content was reviewed for accuracy.
 
@@ -60,12 +60,13 @@ Wiring those two vars into a generator is usually a few lines in its config. Eac
 
 ## Worked examples
 
-Seven examples, each verified building both URL layouts locally:
+Eight examples, each verified building both URL layouts locally:
 
 | Example | Runtime | Notable for |
 | --- | --- | --- |
 | [`examples/plain-html/`](examples/plain-html/) | None (just bash) | The contract, distilled. The build is `cp`. |
 | [`examples/vuepress/`](examples/vuepress/) | Node | Vue-based docs, the source pattern |
+| [`examples/vitepress/`](examples/vitepress/) | Node | Vite-powered Vue 3 docs, fast incremental builds |
 | [`examples/astro/`](examples/astro/) | Node | General-purpose, content-collections |
 | [`examples/docusaurus/`](examples/docusaurus/) | Node (React) | React-based docs (Meta) |
 | [`examples/eleventy/`](examples/eleventy/) | Node | Minimal SSG, no shell wrapper needed |
