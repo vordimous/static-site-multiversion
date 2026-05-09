@@ -101,10 +101,23 @@ scenario_default() {
     assert_grep "site-version-key\" content=\"$key\"" "$sandbox/site/dist/$key/index.html"
   done
 
-  # Merged manifest must include both the site's own entry and deploy-versions.
+  # Per-version `versions.json` is the unmutated source seed (the snapshot
+  # of versions known at build time). Each historical clone keeps its own
+  # seed; the orchestrator no longer overwrites it.
   assert_grep "current" "$sandbox/site/dist/next/versions.json"
-  assert_grep "0.9"     "$sandbox/site/dist/next/versions.json"
-  assert_grep "1.0"     "$sandbox/site/dist/next/versions.json"
+
+  # Canonical merged manifest is published once at the docroot for runtime
+  # fetch by switcher shims.
+  assert_file "$sandbox/site/dist/versions.json"
+  assert_grep "current" "$sandbox/site/dist/versions.json"
+  assert_grep "0.9"     "$sandbox/site/dist/versions.json"
+  assert_grep "1.0"     "$sandbox/site/dist/versions.json"
+
+  # The switcher shim is dropped into every per-version output dir so each
+  # version's <script src="./switcher.js"> resolves locally.
+  for key in 0.9 1.0 next; do
+    assert_file "$sandbox/site/dist/$key/switcher.js"
+  done
 }
 
 # --- Scenario 2: SITE_BASE set ----------------------------------------------
@@ -128,6 +141,10 @@ scenario_site_base() {
     assert_file "$sandbox/site/dist/my-docs/$key/index.html"
     assert_grep "site-base\" content=\"my-docs\"" "$sandbox/site/dist/my-docs/$key/index.html"
   done
+
+  # Canonical manifest lives under the SITE_BASE prefix.
+  assert_file "$sandbox/site/dist/my-docs/versions.json"
+  assert_grep "0.9" "$sandbox/site/dist/my-docs/versions.json"
 }
 
 # --- Scenario 3: empty deploy-versions.json (only HEAD) ---------------------

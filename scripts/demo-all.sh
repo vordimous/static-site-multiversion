@@ -27,9 +27,12 @@ DEPLOY_VERSIONS_FILE="$REPO_ROOT/deploy-versions.demo.json"
 ORCHESTRATOR="$REPO_ROOT/scripts/build-versions.sh"
 REPO_URL="file://$REPO_ROOT"
 SERVE_ROOT="$REPO_ROOT/.demo/_serve"
+CACHE_DIR="${CACHE_DIR:-$REPO_ROOT/.cache}"
 
 [ -f "$DEPLOY_VERSIONS_FILE" ] || { echo "demo-all: $DEPLOY_VERSIONS_FILE not found" >&2; exit 1; }
 [ -x "$ORCHESTRATOR" ]         || { echo "demo-all: $ORCHESTRATOR not executable" >&2; exit 1; }
+
+mkdir -p "$CACHE_DIR"
 
 ALL_BUILDERS=(plain-html vuepress vitepress astro docusaurus eleventy hugo mkdocs)
 
@@ -88,14 +91,6 @@ run_builder() {
   done | jq -s '.' > "$filtered_deploy"
   mv "$filtered_deploy" "$merged_deploy"
 
-  # The orchestrator overwrites $manifest in-place during the HEAD build so
-  # generators read the merged switcher list. Snapshot and restore so re-runs
-  # don't dirty the working tree (and don't accumulate duplicate entries on
-  # subsequent runs, since the merge is concat-only).
-  local manifest_backup
-  manifest_backup="$(mktemp)"
-  cp "$REPO_ROOT/$manifest" "$manifest_backup"
-
   # The orchestrator runs INSTALL_CMD only inside historical clones, not
   # for the HEAD build, so we run it once locally first so the HEAD build
   # has its own node_modules. Idempotent for already-installed lockfiles.
@@ -112,10 +107,10 @@ run_builder() {
   DIST_DIR="$SERVE_ROOT" \
   BUILD_DIR="$build_root" \
   SITE_BASE="$builder" \
+  CACHE_DIR="$CACHE_DIR/$builder" \
     "$ORCHESTRATOR" || rc=$?
 
-  cp "$manifest_backup" "$REPO_ROOT/$manifest"
-  rm -f "$manifest_backup" "$merged_deploy" "$REPO_ROOT/versions.json"
+  rm -f "$merged_deploy"
 
   if [ "$rc" -eq 0 ]; then
     RAN+=("$builder")
@@ -255,6 +250,28 @@ HTML
 }
 
 write_index
+
+# Cross-builder index: machine-readable map of every built builder to its
+# per-builder canonical versions.json. Useful for tooling that wants to
+# discover the structure without scraping the HTML index.
+write_cross_index() {
+  local out="$SERVE_ROOT/versions.json"
+  {
+    printf '{\n  "builders": [\n'
+    local first=1
+    for b in "${ALL_BUILDERS[@]}"; do
+      [ -d "$SERVE_ROOT/$b" ] || continue
+      [ -f "$SERVE_ROOT/$b/versions.json" ] || continue
+      if [ "$first" -eq 0 ]; then printf ',\n'; fi
+      first=0
+      printf '    { "name": "%s", "versions": "/%s/versions.json", "default": "next" }' "$b" "$b"
+    done
+    printf '\n  ]\n}\n'
+  } > "$out"
+  echo "wrote $out"
+}
+
+write_cross_index
 
 echo
 echo "=== summary ==="

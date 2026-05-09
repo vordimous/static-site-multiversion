@@ -20,6 +20,9 @@
 #   INSTALL_CMD         install command per version    (default: pnpm install)
 #   BUILD_CMD           build command per version      (default: pnpm build)
 #   NEXT_KEY            version key for HEAD           (default: next)
+#   SWITCHER_JS         path to switcher.js to copy
+#                       into each per-version output   (default: $script_dir/switcher.js)
+#   CACHE_DIR           SHA-keyed artifact cache root  (default: empty = disabled)
 #
 # INSTALL_CMD and BUILD_CMD are passed through `eval`, so they accept full
 # shell syntax (pipes, &&, subshells). Quote anything that needs to survive
@@ -28,10 +31,24 @@
 # Builder contract: each build must honor SITE_VERSION_KEY and DIST_DIR (and
 # SITE_BASE when set), writing output to:
 #   $DIST_DIR/[$SITE_BASE/]$SITE_VERSION_KEY/
+#
+# Versioning model:
+#   - Each version's source `versions.json` (e.g. src/versions.json) is the
+#     "seed" snapshot of versions known at build time. The orchestrator no
+#     longer overwrites it; historical clones keep their committed seed.
+#   - After all per-version builds, the orchestrator writes the MERGED list
+#     (seed + deploy-versions) to $DIST_DIR/[$SITE_BASE/]versions.json. This
+#     is the "canonical" runtime list — switcher shims (scripts/switcher.js
+#     mode=runtime|hybrid) fetch ../versions.json to discover newer versions
+#     added after their build.
+#   - SWITCHER_JS, if present, is copied into every per-version output dir
+#     so each version's <script src="./switcher.js"> resolves locally.
 
 set -euo pipefail
 
 : "${REPO_URL:?REPO_URL is required}"
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
 DEPLOY_VERSIONS="${DEPLOY_VERSIONS:-deploy-versions.json}"
 VERSIONS_MANIFEST="${VERSIONS_MANIFEST:-src/versions.json}"
@@ -41,6 +58,8 @@ SITE_BASE="${SITE_BASE:-}"
 INSTALL_CMD="${INSTALL_CMD:-pnpm install}"
 BUILD_CMD="${BUILD_CMD:-pnpm build}"
 NEXT_KEY="${NEXT_KEY:-next}"
+SWITCHER_JS="${SWITCHER_JS:-$SCRIPT_DIR/switcher.js}"
+CACHE_DIR="${CACHE_DIR:-}"
 
 if [ ! -f "$DEPLOY_VERSIONS" ]; then
   echo "build-versions: $DEPLOY_VERSIONS not found" >&2
@@ -54,26 +73,70 @@ fi
 
 mkdir -p "$DIST_DIR" "$BUILD_DIR"
 
-# 1. Build a unified versions manifest by merging the site's own list with
-#    deploy-versions.json. Each historical clone gets this same manifest copied
-#    in before it builds, so every version's UI shows the same switcher.
-MERGED_MANIFEST="$PWD/versions.json"
+# Per-builder canonical output prefix: $DIST_DIR/[$SITE_BASE/]
+canonical_prefix="$DIST_DIR"
+if [ -n "$SITE_BASE" ]; then
+  canonical_prefix="$canonical_prefix/$SITE_BASE"
+fi
+mkdir -p "$canonical_prefix"
+
+# Resolves the per-key output dir under the canonical prefix.
+key_outdir() { printf '%s/%s' "$canonical_prefix" "$1"; }
+
+# 1. Merge the site's seed with deploy-versions.json into a temp manifest.
+#    The seed (committed at $VERSIONS_MANIFEST) is left untouched; the merged
+#    list is the canonical one we publish at $canonical_prefix/versions.json
+#    after all per-version builds finish.
+MERGED_MANIFEST="$(mktemp -t merged-versions.XXXXXX)"
+trap 'rm -f "$MERGED_MANIFEST"' EXIT
 jq -s '.[0] + .[1]' "$VERSIONS_MANIFEST" "$DEPLOY_VERSIONS" > "$MERGED_MANIFEST"
 
-echo "build-versions: merged manifest written to $MERGED_MANIFEST"
+echo "build-versions: merged manifest computed (seed + deploy-versions)"
 
-# 2. Build each historical version into the shared $DIST_DIR.
+# Resolves a tag (or branch) into its commit SHA inside the source repo.
+resolve_sha() {
+  git ls-remote "$REPO_URL" "refs/tags/$1" "refs/heads/$1" 2>/dev/null \
+    | head -n1 | awk '{print $1}'
+}
+
+# Drops a switcher.js into the per-version output dir, when configured.
+copy_switcher() {
+  local key="$1" out
+  out="$(key_outdir "$key")"
+  if [ -n "$SWITCHER_JS" ] && [ -f "$SWITCHER_JS" ]; then
+    cp "$SWITCHER_JS" "$out/switcher.js"
+  fi
+}
+
+# 2. Build each historical version into the shared $DIST_DIR. If $CACHE_DIR is
+#    configured and we have a SHA match for the tag, restore the cached output
+#    instead of cloning + rebuilding.
 WRKDIR="$PWD"
 
 while IFS= read -r row; do
   key=$(echo "$row" | base64 --decode | jq -r '.key')
   tag=$(echo "$row" | base64 --decode | jq -r '.tag')
 
+  out_dir="$(key_outdir "$key")"
+
+  if [ -n "$CACHE_DIR" ]; then
+    sha="$(resolve_sha "$tag")"
+    if [ -n "$sha" ]; then
+      cache_path="$CACHE_DIR/$sha/$key"
+      if [ -f "$cache_path/index.html" ]; then
+        echo "build-versions: cache hit for $tag@$sha -> $key"
+        rm -rf "$out_dir"
+        mkdir -p "$out_dir"
+        cp -R "$cache_path/." "$out_dir/"
+        copy_switcher "$key"
+        continue
+      fi
+    fi
+  fi
+
   echo "build-versions: cloning $tag -> $BUILD_DIR/$key"
   rm -rf "${BUILD_DIR:?}/$key"
   git -c advice.detachedHead=false clone --quiet --depth 1 -b "$tag" "$REPO_URL" "$BUILD_DIR/$key"
-
-  cp "$MERGED_MANIFEST" "$BUILD_DIR/$key/$VERSIONS_MANIFEST"
 
   echo "build-versions: building $key"
   (
@@ -85,11 +148,21 @@ while IFS= read -r row; do
     eval "$INSTALL_CMD"
     eval "$BUILD_CMD"
   )
+
+  copy_switcher "$key"
+
+  if [ -n "$CACHE_DIR" ] && [ -n "${sha:-}" ] && [ -d "$out_dir" ]; then
+    cache_path="$CACHE_DIR/$sha/$key"
+    rm -rf "$cache_path"
+    mkdir -p "$cache_path"
+    cp -R "$out_dir/." "$cache_path/"
+    echo "build-versions: cached $tag@$sha -> $cache_path"
+  fi
 done < <(jq -rc '.[] | @base64' "$DEPLOY_VERSIONS")
 
-# 3. Build HEAD as `$NEXT_KEY` into the same $DIST_DIR.
+# 3. Build HEAD as `$NEXT_KEY` into the same $DIST_DIR. HEAD always rebuilds
+#    (no cache lookup) since master is the moving tip.
 echo "build-versions: building HEAD as $NEXT_KEY"
-cp "$MERGED_MANIFEST" "$VERSIONS_MANIFEST"
 (
   cd "$WRKDIR"
   # shellcheck disable=SC2031  # subshell-scoped on purpose
@@ -98,5 +171,12 @@ cp "$MERGED_MANIFEST" "$VERSIONS_MANIFEST"
   export DIST_DIR
   eval "$BUILD_CMD"
 )
+copy_switcher "$NEXT_KEY"
+
+# 4. Publish the canonical (merged) versions.json so runtime/hybrid switcher
+#    shims in any version can fetch ../versions.json and discover the full
+#    list, including versions added after their own build was cached.
+cp "$MERGED_MANIFEST" "$canonical_prefix/versions.json"
+echo "build-versions: canonical manifest at $canonical_prefix/versions.json"
 
 echo "build-versions: done. output in $DIST_DIR"
