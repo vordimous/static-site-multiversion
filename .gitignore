@@ -1,6 +1,7 @@
 node_modules/
 dist/
 build/
+.demo/
 # Generated merged manifest at repo root only (per-example src/versions.json is tracked).
 /versions.json
 _test_dist/
