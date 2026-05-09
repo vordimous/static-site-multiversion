@@ -91,42 +91,42 @@ dispatch() {
     plain-html)
       run_builder plain-html \
         "true" \
-        "cd examples/plain-html && ./build.sh" \
+        "(cd examples/plain-html && ./build.sh)" \
         "examples/plain-html/src/versions.json"
       ;;
     vuepress)
       command -v node >/dev/null || { skip_builder vuepress "node not installed"; return; }
       run_builder vuepress \
-        "cd examples/vuepress && npm install --silent" \
-        "cd examples/vuepress && npm run build" \
+        "(cd examples/vuepress && npm install --silent)" \
+        "(cd examples/vuepress && npm run build)" \
         "examples/vuepress/src/versions.json"
       ;;
     astro)
       command -v node >/dev/null || { skip_builder astro "node not installed"; return; }
       run_builder astro \
-        "cd examples/astro && npm install --silent" \
-        "cd examples/astro && npm run build" \
+        "(cd examples/astro && npm install --silent)" \
+        "(cd examples/astro && npm run build)" \
         "examples/astro/src/versions.json"
       ;;
     docusaurus)
       command -v node >/dev/null || { skip_builder docusaurus "node not installed"; return; }
       run_builder docusaurus \
-        "cd examples/docusaurus && npm install --silent" \
-        "cd examples/docusaurus && npm run build" \
+        "(cd examples/docusaurus && npm install --silent)" \
+        "(cd examples/docusaurus && npm run build)" \
         "examples/docusaurus/src/versions.json"
       ;;
     eleventy)
       command -v node >/dev/null || { skip_builder eleventy "node not installed"; return; }
       run_builder eleventy \
-        "cd examples/eleventy && npm install --silent" \
-        "cd examples/eleventy && npm run build" \
+        "(cd examples/eleventy && npm install --silent)" \
+        "(cd examples/eleventy && npm run build)" \
         "examples/eleventy/src/versions.json"
       ;;
     hugo)
       command -v hugo >/dev/null || { skip_builder hugo "hugo not installed"; return; }
       run_builder hugo \
         "true" \
-        "cd examples/hugo && ./build.sh" \
+        "(cd examples/hugo && ./build.sh)" \
         "examples/hugo/versions.json"
       ;;
     mkdocs)
@@ -137,7 +137,7 @@ dispatch() {
       fi
       run_builder mkdocs \
         "true" \
-        "cd examples/mkdocs && ./build.sh" \
+        "(cd examples/mkdocs && ./build.sh)" \
         "examples/mkdocs/versions.json"
       ;;
     *)
