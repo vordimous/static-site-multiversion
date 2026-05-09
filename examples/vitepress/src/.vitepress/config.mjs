@@ -35,12 +35,43 @@ try {
   // Optional file; an empty list is fine.
 }
 
+// Inline injector: VitePress's default theme has Vue-managed routes, so we
+// attach the version-switcher mount + shim include via the page's <head>
+// after DOMContentLoaded. data-mode="hybrid" demos baked-then-replaced.
+const switcherInject = `(function () {
+  function inject() {
+    if (document.getElementById('version-switcher')) return;
+    var div = document.createElement('div');
+    div.id = 'version-switcher';
+    div.setAttribute('data-mode', 'hybrid');
+    div.setAttribute('data-fallback', '../next/');
+    var seed = document.createElement('script');
+    seed.type = 'application/json';
+    seed.id = 'version-switcher-seed';
+    seed.textContent = '[{"key":"current","label":"current"}]';
+    div.appendChild(seed);
+    document.body.appendChild(div);
+    var s = document.createElement('script');
+    s.src = './switcher.js';
+    s.defer = true;
+    document.body.appendChild(s);
+  }
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', inject);
+  } else {
+    inject();
+  }
+})();`
+
 export default defineConfig({
   title: 'Versioned VitePress Example',
   description: `Docs at version ${versionKey}`,
   base: baseUrl,
   outDir,
   cleanUrls: true,
+  head: [
+    ['script', {}, switcherInject],
+  ],
   themeConfig: {
     nav: [
       { text: 'Home', link: '/' },
