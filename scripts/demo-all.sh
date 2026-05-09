@@ -50,12 +50,25 @@ FAILED=()
 run_builder() {
   local builder="$1" install_cmd="$2" build_cmd="$3" manifest="$4"
   local build_root="$REPO_ROOT/.demo/$builder/build"
+  local per_example="$REPO_ROOT/examples/$builder/deploy-versions.json"
 
   rm -rf "$REPO_ROOT/.demo/$builder/build"
   mkdir -p "$build_root"
 
   echo
   echo "=== demo: $builder ==="
+
+  # Merge the global demo refs with this builder's own deploy-versions so
+  # both axes (repo-wide demo timeline + per-builder generator versions)
+  # show up in the version switcher. If a builder has no per-example file
+  # the global axis is used directly.
+  local merged_deploy
+  merged_deploy="$(mktemp)"
+  if [ -f "$per_example" ]; then
+    jq -s '.[0] + .[1]' "$DEPLOY_VERSIONS_FILE" "$per_example" > "$merged_deploy"
+  else
+    cp "$DEPLOY_VERSIONS_FILE" "$merged_deploy"
+  fi
 
   # The orchestrator overwrites $manifest in-place during the HEAD build so
   # generators read the merged switcher list. Snapshot and restore so re-runs
@@ -66,7 +79,7 @@ run_builder() {
   cp "$REPO_ROOT/$manifest" "$manifest_backup"
 
   local rc=0
-  DEPLOY_VERSIONS="$DEPLOY_VERSIONS_FILE" \
+  DEPLOY_VERSIONS="$merged_deploy" \
   VERSIONS_MANIFEST="$manifest" \
   REPO_URL="$REPO_URL" \
   INSTALL_CMD="$install_cmd" \
@@ -77,7 +90,7 @@ run_builder() {
     "$ORCHESTRATOR" || rc=$?
 
   cp "$manifest_backup" "$REPO_ROOT/$manifest"
-  rm -f "$manifest_backup" "$REPO_ROOT/versions.json"
+  rm -f "$manifest_backup" "$merged_deploy" "$REPO_ROOT/versions.json"
 
   if [ "$rc" -eq 0 ]; then
     RAN+=("$builder")

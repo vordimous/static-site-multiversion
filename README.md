@@ -22,7 +22,7 @@ scripts/demo-all.sh     # build every example × every demo version
 scripts/demo-serve.sh   # host them on nginx at http://localhost:8080
 ```
 
-`demo-all.sh` builds each `examples/<builder>/` against this repo's own `demo-v0.9` / `demo-v1.0` tags and the `demo-unstable` branch (configured in [deploy-versions.demo.json](deploy-versions.demo.json)) into a shared docroot at `.demo/_serve/<builder>/<key>/`. `demo-serve.sh` runs `nginx:alpine` in docker against that docroot with a read-only bind mount, so re-running `demo-all.sh` updates the live site without restarting the container.
+`demo-all.sh` builds each `examples/<builder>/` along two axes of versioning, merged at runtime: the global demo timeline ([deploy-versions.demo.json](deploy-versions.demo.json) at the repo root, with `demo-v0.9` / `demo-v1.0` tags and the `demo-unstable` branch) and each builder's own per-example refs (`examples/<builder>/deploy-versions.json`, used to anchor real generator-version tags like `eleventy-v3` or `hugo-v0-145`). Output lands in a shared docroot at `.demo/_serve/<builder>/<key>/`. `demo-serve.sh` runs `nginx:alpine` in docker against that docroot with a read-only bind mount, so re-running `demo-all.sh` updates the live site without restarting the container.
 
 The landing page at `/` links into every built builder × version. Builders whose runtime toolchain (node, hugo, python + mkdocs) isn't installed locally are reported as skipped, not failed. Stop the container with `scripts/demo-serve.sh stop`.
 
