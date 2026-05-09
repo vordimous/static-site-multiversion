@@ -4,10 +4,13 @@
 //   SITE_VERSION_KEY  version slug being built
 //   SITE_BASE         optional URL path prefix
 //   DIST_DIR          shared output root (used by build.sh, not here)
+//   DEPLOY_VERSIONS   path to the merged manifest (for baked-mode dropdown)
 //
 // Docusaurus reads `baseUrl` from the config; the output directory is set via
 // the CLI flag `--out-dir` in build.sh, since it can't be derived from env at
 // config-evaluation time without a wrapper.
+
+const fs = require('node:fs')
 
 const versionKey = process.env.SITE_VERSION_KEY || 'next'
 const siteBase = process.env.SITE_BASE || ''
@@ -15,33 +18,29 @@ const siteBase = process.env.SITE_BASE || ''
 const pathSegments = [siteBase, versionKey].filter(Boolean)
 const baseUrl = `/${pathSegments.join('/')}/`
 
-// Inline injector for the version switcher. data-mode="baked" keeps the
-// dropdown frozen at the seed; demonstrates the no-fetch model where old
-// versions never auto-discover newer ones.
-const switcherInject = `(function () {
-  function inject() {
-    if (document.getElementById('version-switcher')) return;
-    var div = document.createElement('div');
-    div.id = 'version-switcher';
-    div.setAttribute('data-mode', 'baked');
-    div.setAttribute('data-fallback', '../next/');
-    var seed = document.createElement('script');
-    seed.type = 'application/json';
-    seed.id = 'version-switcher-seed';
-    seed.textContent = '[{"key":"current","label":"current"}]';
-    div.appendChild(seed);
-    document.body.appendChild(div);
-    var s = document.createElement('script');
-    s.src = './switcher.js';
-    s.defer = true;
-    document.body.appendChild(s);
+// Docusaurus is the "baked" mode example for the React-themed family.
+// The orchestrator exports DEPLOY_VERSIONS pointing at the merged
+// manifest path; we read it synchronously and bake the navbar's
+// version dropdown items at build time. No runtime fetch.
+const builderBase = siteBase ? `/${siteBase}/` : '/'
+let deployList = []
+if (process.env.DEPLOY_VERSIONS) {
+  try {
+    deployList = JSON.parse(fs.readFileSync(process.env.DEPLOY_VERSIONS, 'utf8'))
+  } catch {
+    // Missing or unreadable; the dropdown gets only the build-time `next` entry.
   }
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', inject);
-  } else {
-    inject();
-  }
-})();`
+}
+
+const seenKeys = new Set()
+const dropdownItems = []
+const pushItem = (key, label) => {
+  if (!key || key === 'current' || seenKeys.has(key)) return
+  seenKeys.add(key)
+  dropdownItems.push({ label: label || key, href: `${builderBase}${key}/` })
+}
+deployList.forEach(v => pushItem(v.key, v.label))
+pushItem(versionKey, versionKey)
 
 /** @type {import('@docusaurus/types').Config} */
 const config = {
@@ -58,13 +57,6 @@ const config = {
       onBrokenMarkdownLinks: 'warn',
     },
   },
-  headTags: [
-    {
-      tagName: 'script',
-      attributes: {},
-      innerHTML: switcherInject,
-    },
-  ],
   i18n: { defaultLocale: 'en', locales: ['en'] },
   presets: [
     [
@@ -83,7 +75,15 @@ const config = {
   themeConfig: {
     navbar: {
       title: 'Versioned Docusaurus',
-      items: [{ to: '/', label: 'Docs', position: 'left' }],
+      items: [
+        { to: '/', label: 'Docs', position: 'left' },
+        {
+          type: 'dropdown',
+          label: versionKey,
+          position: 'right',
+          items: dropdownItems,
+        },
+      ],
     },
   },
 }
