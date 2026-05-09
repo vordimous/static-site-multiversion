@@ -21,7 +21,9 @@
   <p>The contract, distilled. There is no static-site generator here. The build is a single <code>cp</code> from <code>src/</code> to <code>$DIST_DIR/$SITE_VERSION_KEY/</code>.</p>
   <p>Every other example in this repo wires a real generator into the same env-var protocol. This one shows the protocol with nothing else in the way.</p>
   <p>Demo build marker: <strong>next</strong></p>
-  <div id="version-switcher"></div>
+  <div id="version-switcher" data-mode="hybrid" data-fallback="../next/">
+    <script type="application/json" id="version-switcher-seed">[{"key":"current","label":"current"}]</script>
+  </div>
   <script src="./switcher.js" defer></script>
 </body>
 </html>

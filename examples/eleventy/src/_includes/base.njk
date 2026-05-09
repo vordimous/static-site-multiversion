@@ -15,5 +15,9 @@
   <body>
     <header><a href="{{ "/" | url }}">Versioned Eleventy Example</a></header>
     <main>{{ content | safe }}</main>
+    <div id="version-switcher" data-mode="hybrid" data-fallback="../next/">
+      <script type="application/json" id="version-switcher-seed">[{"key":"current","label":"current"}]</script>
+    </div>
+    <script src="./switcher.js" defer></script>
   </body>
 </html>

@@ -15,5 +15,7 @@
   <body>
     <header><a href="{{ site.Home.RelPermalink }}">{{ site.Title }}</a></header>
     <main>{{ block "main" . }}{{ end }}</main>
+    <div id="version-switcher" data-mode="runtime" data-fallback="../next/"></div>
+    <script src="./switcher.js" defer></script>
   </body>
 </html>

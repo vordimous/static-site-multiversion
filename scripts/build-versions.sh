@@ -83,15 +83,19 @@ mkdir -p "$canonical_prefix"
 # Resolves the per-key output dir under the canonical prefix.
 key_outdir() { printf '%s/%s' "$canonical_prefix" "$1"; }
 
-# 1. Merge the site's seed with deploy-versions.json into a temp manifest.
-#    The seed (committed at $VERSIONS_MANIFEST) is left untouched; the merged
-#    list is the canonical one we publish at $canonical_prefix/versions.json
-#    after all per-version builds finish.
+# 1. Compose the canonical manifest. This is the list switcher shims fetch
+#    at runtime, so it lists every navigable version: deploy-versions.json
+#    entries (the historical tags/branches) plus a `next` entry for HEAD.
+#    The example's own seed (`$VERSIONS_MANIFEST`) is left untouched and is
+#    NOT merged in — the seed is the page's own per-build snapshot, which
+#    doesn't map to a navigable URL on its own (it typically reads "current"
+#    or similar self-reference).
 MERGED_MANIFEST="$(mktemp -t merged-versions.XXXXXX)"
 trap 'rm -f "$MERGED_MANIFEST"' EXIT
-jq -s '.[0] + .[1]' "$VERSIONS_MANIFEST" "$DEPLOY_VERSIONS" > "$MERGED_MANIFEST"
+NEXT_ENTRY="$(jq -nc --arg k "$NEXT_KEY" '[{ key: $k, label: $k }]')"
+jq -s '.[0] + .[1]' "$DEPLOY_VERSIONS" <(printf '%s' "$NEXT_ENTRY") > "$MERGED_MANIFEST"
 
-echo "build-versions: merged manifest computed (seed + deploy-versions)"
+echo "build-versions: canonical manifest composed (deploy-versions + $NEXT_KEY)"
 
 # Resolves a tag (or branch) into its commit SHA inside the source repo.
 resolve_sha() {

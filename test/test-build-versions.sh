@@ -106,12 +106,14 @@ scenario_default() {
   # seed; the orchestrator no longer overwrites it.
   assert_grep "current" "$sandbox/site/dist/next/versions.json"
 
-  # Canonical merged manifest is published once at the docroot for runtime
-  # fetch by switcher shims.
+  # Canonical merged manifest at the docroot is what runtime/hybrid switcher
+  # shims fetch. It contains deploy-versions entries plus `next` (HEAD), but
+  # NOT the seed's self-reference ("current") since that doesn't map to a
+  # navigable URL.
   assert_file "$sandbox/site/dist/versions.json"
-  assert_grep "current" "$sandbox/site/dist/versions.json"
-  assert_grep "0.9"     "$sandbox/site/dist/versions.json"
-  assert_grep "1.0"     "$sandbox/site/dist/versions.json"
+  assert_grep "0.9"  "$sandbox/site/dist/versions.json"
+  assert_grep "1.0"  "$sandbox/site/dist/versions.json"
+  assert_grep "next" "$sandbox/site/dist/versions.json"
 
   # The switcher shim is dropped into every per-version output dir so each
   # version's <script src="./switcher.js"> resolves locally.

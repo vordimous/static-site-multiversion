@@ -21,5 +21,7 @@ const versionKey = import.meta.env.PUBLIC_SITE_VERSION_KEY || process.env.SITE_V
     <p>You are viewing version <strong>{versionKey}</strong>.</p>
     <p>Demo build marker: <strong>next</strong></p>
     <p><a href="guide/">Read the guide</a></p>
+    <div id="version-switcher" data-mode="runtime" data-fallback="../next/"></div>
+    <script src="./switcher.js" defer></script>
   </body>
 </html>

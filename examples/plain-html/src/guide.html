@@ -15,7 +15,9 @@
   <h1>Guide</h1>
   <p>The contract has three parts: <code>deploy-versions.json</code> at the repo root, two env vars (<code>SITE_VERSION_KEY</code> and <code>DIST_DIR</code>), and a writeout convention (<code>$DIST_DIR/[$SITE_BASE/]$SITE_VERSION_KEY/</code>).</p>
   <p>Look at <code>build.sh</code> in this directory. The whole thing is twelve lines.</p>
-  <div id="version-switcher"></div>
+  <div id="version-switcher" data-mode="hybrid" data-fallback="../next/">
+    <script type="application/json" id="version-switcher-seed">[{"key":"current","label":"current"}]</script>
+  </div>
   <script src="./switcher.js" defer></script>
 </body>
 </html>

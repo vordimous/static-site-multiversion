@@ -12,5 +12,7 @@ const versionKey = import.meta.env.PUBLIC_SITE_VERSION_KEY || process.env.SITE_V
     <h1>Guide</h1>
     <p>This page exists to give the build more than one route. Version <strong>{versionKey}</strong>.</p>
     <p><a href="../">Back to home</a></p>
+    <div id="version-switcher" data-mode="runtime" data-fallback="../../next/"></div>
+    <script src="../switcher.js" defer></script>
   </body>
 </html>
