@@ -50,14 +50,28 @@ run_builder() {
   echo
   echo "=== demo: $builder ==="
 
-  if DEPLOY_VERSIONS="$DEPLOY_VERSIONS_FILE" \
-     VERSIONS_MANIFEST="$manifest" \
-     REPO_URL="$REPO_URL" \
-     INSTALL_CMD="$install_cmd" \
-     BUILD_CMD="$build_cmd" \
-     DIST_DIR="$out_root/dist" \
-     BUILD_DIR="$out_root/build" \
-       "$ORCHESTRATOR"; then
+  # The orchestrator overwrites $manifest in-place during the HEAD build so
+  # generators read the merged switcher list. Snapshot and restore so re-runs
+  # don't dirty the working tree (and don't accumulate duplicate entries on
+  # subsequent runs, since the merge is concat-only).
+  local manifest_backup
+  manifest_backup="$(mktemp)"
+  cp "$REPO_ROOT/$manifest" "$manifest_backup"
+
+  local rc=0
+  DEPLOY_VERSIONS="$DEPLOY_VERSIONS_FILE" \
+  VERSIONS_MANIFEST="$manifest" \
+  REPO_URL="$REPO_URL" \
+  INSTALL_CMD="$install_cmd" \
+  BUILD_CMD="$build_cmd" \
+  DIST_DIR="$out_root/dist" \
+  BUILD_DIR="$out_root/build" \
+    "$ORCHESTRATOR" || rc=$?
+
+  cp "$manifest_backup" "$REPO_ROOT/$manifest"
+  rm -f "$manifest_backup" "$REPO_ROOT/versions.json"
+
+  if [ "$rc" -eq 0 ]; then
     RAN+=("$builder")
   else
     FAILED+=("$builder")

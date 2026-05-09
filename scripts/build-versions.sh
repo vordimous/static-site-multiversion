@@ -21,6 +21,10 @@
 #   BUILD_CMD           build command per version      (default: pnpm build)
 #   NEXT_KEY            version key for HEAD           (default: next)
 #
+# INSTALL_CMD and BUILD_CMD are passed through `eval`, so they accept full
+# shell syntax (pipes, &&, subshells). Quote anything that needs to survive
+# expansion at the call site.
+#
 # Builder contract: each build must honor SITE_VERSION_KEY and DIST_DIR (and
 # SITE_BASE when set), writing output to:
 #   $DIST_DIR/[$SITE_BASE/]$SITE_VERSION_KEY/
@@ -78,8 +82,8 @@ while IFS= read -r row; do
     export SITE_VERSION_KEY="$key"
     export SITE_BASE
     export DIST_DIR
-    $INSTALL_CMD
-    $BUILD_CMD
+    eval "$INSTALL_CMD"
+    eval "$BUILD_CMD"
   )
 done < <(jq -rc '.[] | @base64' "$DEPLOY_VERSIONS")
 
@@ -92,7 +96,7 @@ cp "$MERGED_MANIFEST" "$VERSIONS_MANIFEST"
   export SITE_VERSION_KEY="$NEXT_KEY"
   export SITE_BASE
   export DIST_DIR
-  $BUILD_CMD
+  eval "$BUILD_CMD"
 )
 
 echo "build-versions: done. output in $DIST_DIR"
