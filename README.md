@@ -6,6 +6,19 @@ A portable contract for building multi-version static sites from git tags, gener
 
 > AI-assisted: I distilled this pattern from an existing VuePress workflow (Aklivity's [zilla-docs](https://github.com/aklivity/zilla-docs)) and used Claude to help draft the portable script, schema, and documentation. All content was reviewed for accuracy.
 
+## Try the demo locally
+
+Clone the repo, then from the repo root:
+
+```bash
+scripts/demo-all.sh     # build every example × every demo version
+scripts/demo-serve.sh   # host them on nginx at http://localhost:8080
+```
+
+`demo-all.sh` builds each `examples/<builder>/` against this repo's own `demo-v0.9` / `demo-v1.0` tags and the `demo-unstable` branch (configured in [deploy-versions.demo.json](deploy-versions.demo.json)) into a shared docroot at `.demo/_serve/<builder>/<key>/`. `demo-serve.sh` runs `nginx:alpine` in docker against that docroot with a read-only bind mount, so re-running `demo-all.sh` updates the live site without restarting the container.
+
+The landing page at `/` links into every built builder × version. Builders whose runtime toolchain (node, hugo, python + mkdocs) isn't installed locally are reported as skipped, not failed. Stop the container with `scripts/demo-serve.sh stop`.
+
 ## The contract
 
 Three pieces, none CI-specific or builder-specific.
@@ -50,7 +63,7 @@ Seven examples, each verified building both URL layouts locally:
 | [`examples/hugo/`](examples/hugo/) | Go | Single binary, fastest builds |
 | [`examples/mkdocs/`](examples/mkdocs/) | Python | Cross-runtime proof of portability |
 
-Start with `examples/plain-html/` if you want to see the contract on its own; pick the example matching your generator if you want to see real wiring.
+Start with `examples/plain-html/` if you want to see the contract on its own; pick the example matching your generator if you want to see real wiring. Or run [`scripts/demo-all.sh`](scripts/demo-all.sh) and browse them all side-by-side under nginx (see "Try the demo locally" above).
 
 ## The portable orchestration
 
