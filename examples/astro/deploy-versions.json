@@ -1,1 +1,4 @@
-[]
+[
+  { "key": "v3", "tag": "astro-v3", "label": "Astro v3" },
+  { "key": "v4", "tag": "astro-v4", "label": "Astro v4" }
+]
