@@ -1,1 +1,4 @@
-[]
+[
+  { "key": "v2", "tag": "docusaurus-v2", "label": "Docusaurus v2 (MDX 1, React 17)" },
+  { "key": "v3", "tag": "docusaurus-v3", "label": "Docusaurus v3 (MDX 3, React 18)" }
+]
