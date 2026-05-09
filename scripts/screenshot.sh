@@ -52,6 +52,11 @@ URL="$url" OUT="$out" \
       console.error(`screenshot: ${u} returned ${resp ? resp.status() : "no response"}`);
       process.exit(1);
     }
+    // Defer-loaded scripts can fire fetches after the initial networkidle;
+    // give the page a brief moment to settle so the screenshot captures the
+    // post-fetch state (e.g. switcher.js replacing its seed dropdown).
+    await page.waitForLoadState("networkidle");
+    await page.waitForTimeout(parseInt(process.env.SETTLE || "800", 10));
     await page.screenshot({ path: out, fullPage: FULL_PAGE === "1" });
     console.log(`screenshot: wrote ${out} (${u})`);
     if (headed) {
