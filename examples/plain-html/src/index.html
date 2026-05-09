@@ -2,19 +2,24 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <title>Plain HTML Example</title>
+  <title>Plain HTML</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <style>
-    body { font-family: system-ui, sans-serif; max-width: 40rem; margin: 2rem auto; padding: 0 1rem; }
+    :root { --accent: #5b21b6; }
+    body { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; max-width: 44rem; margin: 2rem auto; padding: 0 1rem; color: #1a1a1a; line-height: 1.55; }
     nav { margin-bottom: 1rem; }
+    nav a { color: var(--accent); text-decoration: none; border-bottom: 1px solid var(--accent); }
+    h1 { color: var(--accent); border-bottom: 2px solid var(--accent); padding-bottom: 0.25rem; letter-spacing: -0.01em; }
+    a { color: var(--accent); }
+    code { background: #f3eef9; padding: 0.05rem 0.3rem; border-radius: 3px; font-size: 0.95em; }
     #version-switcher { margin-top: 1rem; }
   </style>
 </head>
 <body>
   <nav><a href="./guide.html">Guide</a></nav>
-  <h1>Plain HTML Example</h1>
-  <p>This site is built using the <a href="https://github.com/vordimous/static-site-multiversion">static-site-multiversion</a> builder contract. There is no generator. The build is <code>cp</code>.</p>
-  <p>Every other example in this repo is a real static-site generator doing the same thing under more layers. This one is the contract, distilled.</p>
+  <h1>Plain HTML</h1>
+  <p>The contract, distilled. There is no static-site generator here. The build is a single <code>cp</code> from <code>src/</code> to <code>$DIST_DIR/$SITE_VERSION_KEY/</code>.</p>
+  <p>Every other example in this repo wires a real generator into the same env-var protocol. This one shows the protocol with nothing else in the way.</p>
   <p>Demo build marker: <strong>next</strong></p>
   <div id="version-switcher"></div>
   <script src="./switcher.js" defer></script>

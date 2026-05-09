@@ -2,9 +2,9 @@
 title: Versioned Hugo Example
 ---
 
-# Versioned Hugo Example
+# Built in milliseconds.
 
-This site is built using the [static-site-multiversion](https://github.com/vordimous/static-site-multiversion) builder contract. The version slug comes from `SITE_VERSION_KEY` at build time.
+Hugo is a Go-built single-binary SSG with no Node toolchain at all. The wrapper script in `build.sh` maps the contract's env vars onto the `hugo` CLI in a few lines. The version slug comes from `SITE_VERSION_KEY` at build time.
 
 Demo build marker: **next**
 

@@ -3,9 +3,9 @@ slug: /
 title: Versioned Docusaurus Example
 ---
 
-# Versioned Docusaurus Example
+# A React-built docs platform.
 
-This site is built using the [static-site-multiversion](https://github.com/vordimous/static-site-multiversion) builder contract. The version slug is supplied at build time via the `SITE_VERSION_KEY` environment variable.
+Docusaurus is Meta's batteries-included documentation site generator: versioning, search, MDX, dark mode, plugin ecosystem. The static-site-multiversion contract slots in alongside Docusaurus's native versioning when you want a different versioning model.
 
 Demo build marker: **next**
 

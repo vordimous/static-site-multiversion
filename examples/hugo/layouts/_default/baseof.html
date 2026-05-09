@@ -4,6 +4,13 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>{{ block "title" . }}{{ site.Title }}{{ end }}</title>
+    <style>
+      body { font-family: "Helvetica Neue", Arial, sans-serif; max-width: 42rem; margin: 2rem auto; padding: 0 1rem; color: #1a1a1a; line-height: 1.55; }
+      header a { color: #08a4cc; font-weight: 600; text-decoration: none; font-size: 1.15rem; }
+      h1 { color: #08a4cc; letter-spacing: -0.02em; }
+      a { color: #08a4cc; }
+      code { background: #e6f7fb; padding: 0.05rem 0.3rem; border-radius: 3px; }
+    </style>
   </head>
   <body>
     <header><a href="{{ site.Home.RelPermalink }}">{{ site.Title }}</a></header>

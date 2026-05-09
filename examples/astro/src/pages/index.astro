@@ -7,9 +7,17 @@ const versionKey = import.meta.env.PUBLIC_SITE_VERSION_KEY || process.env.SITE_V
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Versioned Astro example</title>
+    <style>
+      body { font-family: "Inter", system-ui, sans-serif; max-width: 42rem; margin: 2rem auto; padding: 0 1rem; color: #1a1a1a; line-height: 1.55; }
+      h1 { color: #ff5d01; letter-spacing: -0.02em; }
+      a { color: #ff5d01; }
+      strong { color: #ff5d01; }
+      code { background: #fff0e6; padding: 0.05rem 0.3rem; border-radius: 3px; }
+    </style>
   </head>
   <body>
-    <h1>Versioned Astro example</h1>
+    <h1>Zero JS by default.</h1>
+    <p>Astro renders static HTML with no client bundle out of the box, and lets components opt into hydration via islands. The contract wiring is one block of env-var glue in <code>astro.config.mjs</code>.</p>
     <p>You are viewing version <strong>{versionKey}</strong>.</p>
     <p>Demo build marker: <strong>next</strong></p>
     <p><a href="guide/">Read the guide</a></p>

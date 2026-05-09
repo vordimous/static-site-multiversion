@@ -1,1 +1,11 @@
 /* Custom CSS hook for the Docusaurus classic theme. */
+
+:root {
+  --ifm-color-primary: #0e8a7c;
+  --ifm-color-primary-dark: #0c7a6e;
+  --ifm-color-primary-darker: #0b7367;
+  --ifm-color-primary-darkest: #095e55;
+  --ifm-color-primary-light: #109b8a;
+  --ifm-color-primary-lighter: #12a292;
+  --ifm-color-primary-lightest: #16b8a6;
+}
