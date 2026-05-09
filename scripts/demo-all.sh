@@ -96,6 +96,13 @@ run_builder() {
   manifest_backup="$(mktemp)"
   cp "$REPO_ROOT/$manifest" "$manifest_backup"
 
+  # The orchestrator runs INSTALL_CMD only inside historical clones, not
+  # for the HEAD build, so we run it once locally first so the HEAD build
+  # has its own node_modules. Idempotent for already-installed lockfiles.
+  if [ "$install_cmd" != "true" ]; then
+    ( cd "$REPO_ROOT" && eval "$install_cmd" )
+  fi
+
   local rc=0
   DEPLOY_VERSIONS="$merged_deploy" \
   VERSIONS_MANIFEST="$manifest" \
@@ -226,10 +233,14 @@ HTML
     for b in "${ALL_BUILDERS[@]}"; do
       [ -d "$SERVE_ROOT/$b" ] || continue
       printf '      <tr><td><strong>%s</strong></td><td>' "$b"
-      for k in 0.9 1.0 unstable next; do
-        if [ -d "$SERVE_ROOT/$b/$k" ]; then
-          printf '<a href="./%s/%s/">%s</a> ' "$b" "$k" "$k"
-        fi
+      # List every per-version subdir, with `next` last so HEAD is to the right.
+      versions=()
+      while IFS= read -r v; do
+        versions+=("$v")
+      done < <(find "$SERVE_ROOT/$b" -mindepth 1 -maxdepth 1 -type d -not -name next -exec basename {} \; 2>/dev/null | sort)
+      [ -d "$SERVE_ROOT/$b/next" ] && versions+=(next)
+      for k in "${versions[@]}"; do
+        printf '<a href="./%s/%s/">%s</a> ' "$b" "$k" "$k"
       done
       printf '</td></tr>\n'
     done
