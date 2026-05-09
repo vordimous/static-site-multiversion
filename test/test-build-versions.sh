@@ -177,9 +177,80 @@ scenario_empty_versions() {
   fi
 }
 
+# --- Scenario 4: SHA-keyed cache (hit + miss) -------------------------------
+
+scenario_cache() {
+  local sandbox cache rc
+  sandbox="$(mktemp -d)"
+  cache="$(mktemp -d)"
+  # shellcheck disable=SC2064  # capture sandbox path at trap-set time on purpose
+  trap "rm -rf $sandbox $cache" RETURN
+  make_sandbox "$sandbox"
+
+  # First run: cold cache, both historical entries should write to it.
+  REPO_URL="file://$sandbox/site" \
+  INSTALL_CMD="true" \
+  BUILD_CMD="./fake-build.sh" \
+  DIST_DIR="$sandbox/site/dist" \
+  BUILD_DIR="$sandbox/site/build" \
+  CACHE_DIR="$cache" \
+    "$SCRIPT" > "$sandbox/run1.log" 2>&1
+
+  for key in 0.9 1.0; do
+    if find "$cache" -path "*/$key/index.html" -print -quit | grep -q .; then
+      PASS=$((PASS + 1))
+    else
+      echo "  FAIL: no cache entry written for $key after cold run" >&2
+      FAIL=$((FAIL + 1))
+    fi
+  done
+
+  # Wipe the dist dir so we can detect that the second run restored from cache
+  # rather than rebuilding.
+  rm -rf "$sandbox/site/dist"
+
+  # Second run: warm cache, historical builds should be served from cache and
+  # not invoke fake-build.sh. We strip the build script's executable bit so
+  # the orchestrator would fail loudly if it tried to invoke it.
+  chmod -x "$sandbox/site/fake-build.sh"
+
+  rc=0
+  REPO_URL="file://$sandbox/site" \
+  INSTALL_CMD="true" \
+  BUILD_CMD="./fake-build.sh" \
+  DIST_DIR="$sandbox/site/dist" \
+  BUILD_DIR="$sandbox/site/build" \
+  CACHE_DIR="$cache" \
+    "$SCRIPT" > "$sandbox/run2.log" 2>&1 || rc=$?
+  chmod +x "$sandbox/site/fake-build.sh"
+
+  # HEAD always rebuilds, and HEAD's BUILD_CMD will fail because the script
+  # is non-executable. We only care that historicals were cache-hit; rc != 0
+  # is expected. Just check the historical entries were restored.
+  for key in 0.9 1.0; do
+    assert_file "$sandbox/site/dist/$key/index.html"
+  done
+
+  if grep -q "cache hit" "$sandbox/run2.log"; then
+    PASS=$((PASS + 1))
+  else
+    echo "  FAIL: warm run did not log a cache hit" >&2
+    FAIL=$((FAIL + 1))
+  fi
+
+  # Sanity: rc is non-zero (HEAD build was supposed to fail).
+  if [ "$rc" -ne 0 ]; then
+    PASS=$((PASS + 1))
+  else
+    echo "  FAIL: HEAD build was expected to fail (script non-executable) but rc=0" >&2
+    FAIL=$((FAIL + 1))
+  fi
+}
+
 run_scenario "default settings"         scenario_default
 run_scenario "with SITE_BASE prefix"    scenario_site_base
 run_scenario "empty deploy-versions"    scenario_empty_versions
+run_scenario "SHA cache hit/miss"       scenario_cache
 
 echo
 echo "results: $PASS passed, $FAIL failed"
