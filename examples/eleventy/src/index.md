@@ -7,6 +7,6 @@ title: Versioned Eleventy Example
 
 This site is built using the [static-site-multiversion](https://github.com/vordimous/static-site-multiversion) builder contract. Current version: **{{ siteVersionKey }}**.
 
-Demo build marker: **v1.0**
+Demo build marker: **next**
 
 [Read the guide]({{ "/guide/" | url }})
