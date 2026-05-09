@@ -8,7 +8,14 @@ A portable contract for building multi-version static sites from git tags, gener
 
 ## Try the demo locally
 
-Clone the repo, then from the repo root:
+The fastest way is the prebuilt image, which has every example × every demo version baked into nginx:
+
+```bash
+docker run --rm -p 8080:80 ghcr.io/vordimous/static-site-multiversion:latest
+# open http://localhost:8080/
+```
+
+Or build from source (also runs nginx, but rebuilds each example from this repo's own demo refs first):
 
 ```bash
 scripts/demo-all.sh     # build every example × every demo version
@@ -18,6 +25,8 @@ scripts/demo-serve.sh   # host them on nginx at http://localhost:8080
 `demo-all.sh` builds each `examples/<builder>/` against this repo's own `demo-v0.9` / `demo-v1.0` tags and the `demo-unstable` branch (configured in [deploy-versions.demo.json](deploy-versions.demo.json)) into a shared docroot at `.demo/_serve/<builder>/<key>/`. `demo-serve.sh` runs `nginx:alpine` in docker against that docroot with a read-only bind mount, so re-running `demo-all.sh` updates the live site without restarting the container.
 
 The landing page at `/` links into every built builder × version. Builders whose runtime toolchain (node, hugo, python + mkdocs) isn't installed locally are reported as skipped, not failed. Stop the container with `scripts/demo-serve.sh stop`.
+
+The same multi-stage [Dockerfile](Dockerfile) is what the [release-image workflow](.github/workflows/release-image.yml) pushes to GHCR on every commit to the default branch.
 
 ## The contract
 

@@ -1,0 +1,19 @@
+# Keep .git so the multi-stage build can clone historical demo-* refs.
+
+.demo
+**/node_modules
+**/.vuepress/.temp
+**/.vuepress/.cache
+**/.astro
+**/.docusaurus
+**/.hugo_build.lock
+.venv
+__pycache__
+*.pyc
+.DS_Store
+.vscode
+.idea
+*.log
+.env
+.env.local
+.claude/settings.local.json
