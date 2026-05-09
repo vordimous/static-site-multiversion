@@ -5,11 +5,13 @@
 # this repo itself as the consumer site: REPO_URL is a file:// pointer to
 # $REPO_ROOT, and historical clones land under .demo/<builder>/build/.
 #
+# Each builder is built with SITE_BASE=<builder> into a shared docroot at
+# .demo/_serve/, so every builder can be hosted side-by-side under one
+# server (see scripts/demo-serve.sh). URLs end up as /<builder>/<key>/...,
+# matching the pattern used by .github/workflows/demos.yml in CI.
+#
 # Examples whose runtime toolchain (node / hugo / python+mkdocs) isn't
 # available locally are skipped and reported, not failed.
-#
-# Output: .demo/<builder>/dist/<key>/ per built version. Serve any subtree to
-# inspect the per-version output and the merged versions.json switcher.
 #
 # Usage:
 #   scripts/demo-all.sh                # all examples
@@ -24,6 +26,7 @@ cd "$REPO_ROOT"
 DEPLOY_VERSIONS_FILE="$REPO_ROOT/deploy-versions.demo.json"
 ORCHESTRATOR="$REPO_ROOT/scripts/build-versions.sh"
 REPO_URL="file://$REPO_ROOT"
+SERVE_ROOT="$REPO_ROOT/.demo/_serve"
 
 [ -f "$DEPLOY_VERSIONS_FILE" ] || { echo "demo-all: $DEPLOY_VERSIONS_FILE not found" >&2; exit 1; }
 [ -x "$ORCHESTRATOR" ]         || { echo "demo-all: $ORCHESTRATOR not executable" >&2; exit 1; }
@@ -36,16 +39,20 @@ else
   TARGETS=("${ALL_BUILDERS[@]}")
 fi
 
+# Wipe the shared docroot once at the start; each builder appends to it.
+rm -rf "$SERVE_ROOT"
+mkdir -p "$SERVE_ROOT"
+
 RAN=()
 SKIPPED=()
 FAILED=()
 
 run_builder() {
   local builder="$1" install_cmd="$2" build_cmd="$3" manifest="$4"
-  local out_root="$REPO_ROOT/.demo/$builder"
+  local build_root="$REPO_ROOT/.demo/$builder/build"
 
-  rm -rf "$out_root"
-  mkdir -p "$out_root"
+  rm -rf "$REPO_ROOT/.demo/$builder/build"
+  mkdir -p "$build_root"
 
   echo
   echo "=== demo: $builder ==="
@@ -64,8 +71,9 @@ run_builder() {
   REPO_URL="$REPO_URL" \
   INSTALL_CMD="$install_cmd" \
   BUILD_CMD="$build_cmd" \
-  DIST_DIR="$out_root/dist" \
-  BUILD_DIR="$out_root/build" \
+  DIST_DIR="$SERVE_ROOT" \
+  BUILD_DIR="$build_root" \
+  SITE_BASE="$builder" \
     "$ORCHESTRATOR" || rc=$?
 
   cp "$manifest_backup" "$REPO_ROOT/$manifest"
@@ -150,10 +158,60 @@ for b in "${TARGETS[@]}"; do
   dispatch "$b"
 done
 
+# Top-level landing page that links into each built builder.
+write_index() {
+  local out="$SERVE_ROOT/index.html"
+  {
+    cat <<'HTML'
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>static-site-multiversion local demo</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    body { font-family: system-ui, sans-serif; max-width: 48rem; margin: 2rem auto; padding: 0 1rem; }
+    h1 { margin-bottom: 0.25rem; }
+    .lead { color: #555; margin-top: 0; }
+    table { border-collapse: collapse; width: 100%; margin-top: 1rem; }
+    th, td { text-align: left; padding: 0.4rem 0.6rem; border-bottom: 1px solid #eee; }
+    code { background: #f4f4f4; padding: 0 0.25rem; border-radius: 3px; }
+  </style>
+</head>
+<body>
+  <h1>static-site-multiversion</h1>
+  <p class="lead">Local multi-version demo. Each row is the same site, built by a different generator from the same git history.</p>
+  <table>
+    <thead><tr><th>Builder</th><th>Versions</th></tr></thead>
+    <tbody>
+HTML
+    for b in "${ALL_BUILDERS[@]}"; do
+      [ -d "$SERVE_ROOT/$b" ] || continue
+      printf '      <tr><td><strong>%s</strong></td><td>' "$b"
+      for k in 0.9 1.0 unstable next; do
+        if [ -d "$SERVE_ROOT/$b/$k" ]; then
+          printf '<a href="./%s/%s/">%s</a> ' "$b" "$k" "$k"
+        fi
+      done
+      printf '</td></tr>\n'
+    done
+    cat <<'HTML'
+    </tbody>
+  </table>
+</body>
+</html>
+HTML
+  } > "$out"
+  echo "wrote $out"
+}
+
+write_index
+
 echo
 echo "=== summary ==="
 printf 'ran:     %s\n' "${RAN[*]:-(none)}"
 printf 'skipped: %s\n' "${SKIPPED[*]:-(none)}"
 printf 'failed:  %s\n' "${FAILED[*]:-(none)}"
+echo "docroot: $SERVE_ROOT"
 
 [ "${#FAILED[@]}" -eq 0 ]
