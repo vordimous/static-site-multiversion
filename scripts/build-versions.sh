@@ -149,6 +149,11 @@ while IFS= read -r row; do
     export SITE_VERSION_KEY="$key"
     export SITE_BASE
     export DIST_DIR
+    # Export the merged manifest path so build-time configs (e.g. baked-mode
+    # navbar dropdowns in VuePress / Docusaurus) can read it for static
+    # injection. Each clone uses its own ./deploy-versions.json from the tag.
+    # shellcheck disable=SC2030  # subshell-scoped on purpose
+    export DEPLOY_VERSIONS="$BUILD_DIR/$key/deploy-versions.json"
     eval "$INSTALL_CMD"
     eval "$BUILD_CMD"
   )
@@ -167,12 +172,19 @@ done < <(jq -rc '.[] | @base64' "$DEPLOY_VERSIONS")
 # 3. Build HEAD as `$NEXT_KEY` into the same $DIST_DIR. HEAD always rebuilds
 #    (no cache lookup) since master is the moving tip.
 echo "build-versions: building HEAD as $NEXT_KEY"
+# shellcheck disable=SC2031  # reads the orchestrator-scope value, before any historical-loop subshell ran
+HEAD_DEPLOY_VERSIONS="$DEPLOY_VERSIONS"
 (
   cd "$WRKDIR"
   # shellcheck disable=SC2031  # subshell-scoped on purpose
   export SITE_VERSION_KEY="$NEXT_KEY"
   export SITE_BASE
   export DIST_DIR
+  # Same DEPLOY_VERSIONS export as the historical builds — baked-mode
+  # configs read this to bake the version dropdown at build time. For
+  # HEAD this is the input deploy-versions path passed to the orchestrator.
+  # shellcheck disable=SC2031  # subshell-scoped on purpose
+  export DEPLOY_VERSIONS="$HEAD_DEPLOY_VERSIONS"
   eval "$BUILD_CMD"
 )
 copy_switcher "$NEXT_KEY"

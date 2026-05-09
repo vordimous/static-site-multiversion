@@ -13,6 +13,7 @@ import { defineUserConfig } from 'vuepress'
 import { defaultTheme } from '@vuepress/theme-default'
 import { viteBundler } from '@vuepress/bundler-vite'
 import { fileURLToPath } from 'node:url'
+import { readFileSync } from 'node:fs'
 import path from 'node:path'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
@@ -25,34 +26,47 @@ const pathSegments = [siteBase, versionKey].filter(Boolean)
 const base = `/${pathSegments.join('/')}/`
 const dest = path.join(distDir, ...pathSegments)
 
-// Inline injector: VuePress doesn't expose a "post-render body" slot in the
-// default theme, so we attach the version-switcher mount + shim include
-// from the page's <head> on DOMContentLoaded. data-mode="baked" demonstrates
-// the static-snapshot mode (frozen at build time, no runtime fetch).
-const switcherInject = `(function () {
-  function inject() {
-    if (document.getElementById('version-switcher')) return;
-    var div = document.createElement('div');
-    div.id = 'version-switcher';
-    div.setAttribute('data-mode', 'baked');
-    div.setAttribute('data-fallback', '../next/');
-    var seed = document.createElement('script');
-    seed.type = 'application/json';
-    seed.id = 'version-switcher-seed';
-    seed.textContent = '[{"key":"current","label":"current"}]';
-    div.appendChild(seed);
-    document.body.appendChild(div);
-    var s = document.createElement('script');
-    s.src = './switcher.js';
-    s.defer = true;
-    document.body.appendChild(s);
+// VuePress is the "baked" mode example: the navbar's version dropdown
+// is generated statically at build time and never updated at runtime.
+// A frozen v0.9 build will always show the versions known when v0.9
+// was cut. Mirrors the zilla-docs original.
+//
+// Sources for the baked list:
+//   - $DEPLOY_VERSIONS (orchestrator-exported merged manifest path) —
+//     the full historical list. For our demo: deploy-versions.demo.json
+//     plus this builder's per-example deploy-versions.json.
+//   - The `next` entry, always added so users can navigate back to HEAD.
+const seedPath = path.resolve(__dirname, '../versions.json')
+let seed = []
+try {
+  seed = JSON.parse(readFileSync(seedPath, 'utf8'))
+} catch {
+  // Optional; just an empty seed.
+}
+
+let deployList = []
+if (process.env.DEPLOY_VERSIONS) {
+  try {
+    deployList = JSON.parse(readFileSync(process.env.DEPLOY_VERSIONS, 'utf8'))
+  } catch {
+    // Missing or unreadable; just an empty deploy list.
   }
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', inject);
-  } else {
-    inject();
-  }
-})();`
+}
+
+const builderBase = siteBase ? `/${siteBase}/` : '/'
+const seenKeys = new Set()
+const versionItems = []
+
+const pushItem = (key, label) => {
+  if (!key || key === 'current' || seenKeys.has(key)) return
+  seenKeys.add(key)
+  versionItems.push({ text: label || key, link: `${builderBase}${key}/` })
+}
+
+// Order: deploy-versions first, then next, then anything seed-only.
+deployList.forEach(v => pushItem(v.key, v.label))
+pushItem(versionKey, versionKey)
+seed.forEach(v => pushItem(v.key, v.label))
 
 export default defineUserConfig({
   base,
@@ -61,14 +75,12 @@ export default defineUserConfig({
   lang: 'en-US',
   title: 'Versioned VuePress Example',
   description: `Docs at version ${versionKey}`,
-  head: [
-    ['script', {}, switcherInject],
-  ],
   theme: defaultTheme({
     repo: 'vordimous/static-site-multiversion',
     navbar: [
       { text: 'Home', link: '/' },
       { text: 'Guide', link: '/guide/' },
+      { text: versionKey, children: versionItems },
     ],
     sidebar: {
       '/guide/': [
