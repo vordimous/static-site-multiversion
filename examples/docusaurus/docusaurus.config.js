@@ -34,13 +34,34 @@ if (process.env.DEPLOY_VERSIONS) {
 
 const seenKeys = new Set()
 const dropdownItems = []
+const correctHrefs = []   // for the runtime href patcher (see below)
 const pushItem = (key, label) => {
   if (!key || key === 'current' || seenKeys.has(key)) return
   seenKeys.add(key)
-  dropdownItems.push({ label: label || key, href: `${builderBase}${key}/` })
+  const text = label || key
+  const href = `${builderBase}${key}/`
+  dropdownItems.push({ label: text, href })
+  correctHrefs.push({ label: text, href })
 }
 deployList.forEach(v => pushItem(v.key, v.label))
 pushItem(versionKey, versionKey)
+
+// Docusaurus, like VuePress, treats internal navbar links as router-
+// relative and prepends the build's baseUrl. Under /<repo>/ deploys
+// that doubles the prefix in rendered hrefs. Runtime patcher fixes the
+// hrefs after React hydrates by indexing into the dropdown's <a> tags
+// with the correctly-formed paths we computed at build time.
+const switcherHrefFix = `(function () {
+  var ITEMS = ${JSON.stringify(correctHrefs)};
+  function fix() {
+    var anchors = document.querySelectorAll('.dropdown__menu .dropdown__link');
+    if (anchors.length !== ITEMS.length) return;
+    ITEMS.forEach(function (item, i) {
+      anchors[i].setAttribute('href', item.href);
+    });
+  }
+  setInterval(fix, 500);
+})();`
 
 /** @type {import('@docusaurus/types').Config} */
 const config = {
@@ -57,6 +78,13 @@ const config = {
       onBrokenMarkdownLinks: 'warn',
     },
   },
+  headTags: [
+    {
+      tagName: 'script',
+      attributes: {},
+      innerHTML: switcherHrefFix,
+    },
+  ],
   i18n: { defaultLocale: 'en', locales: ['en'] },
   presets: [
     [

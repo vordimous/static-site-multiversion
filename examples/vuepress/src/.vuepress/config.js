@@ -56,17 +56,48 @@ if (process.env.DEPLOY_VERSIONS) {
 const builderBase = siteBase ? `/${siteBase}/` : '/'
 const seenKeys = new Set()
 const versionItems = []
+const correctHrefs = []   // for the runtime href patcher (see below)
 
 const pushItem = (key, label) => {
   if (!key || key === 'current' || seenKeys.has(key)) return
   seenKeys.add(key)
-  versionItems.push({ text: label || key, link: `${builderBase}${key}/` })
+  const text = label || key
+  const link = `${builderBase}${key}/`
+  versionItems.push({ text, link })
+  correctHrefs.push({ text, href: link })
 }
 
 // Order: deploy-versions first, then next, then anything seed-only.
 deployList.forEach(v => pushItem(v.key, v.label))
 pushItem(versionKey, versionKey)
 seed.forEach(v => pushItem(v.key, v.label))
+
+// VuePress's default theme renders navbar dropdown children through
+// vue-router with absolute paths treated as route paths relative to the
+// build's `base`. Under a path-prefixed deploy (e.g. project Pages at
+// /<repo>/) that doubles the prefix in rendered hrefs:
+//   link "/static-site-multiversion/vuepress/0.9/"
+//        -> rendered href "/static-site-multiversion/vuepress/next/static-site-multiversion/vuepress/0.9/"
+// Runtime patcher fixes the hrefs after Vue hydrates by indexing into the
+// dropdown's <a> elements with the correctly-formed paths we computed at
+// build time.
+const switcherHrefFix = `(function () {
+  var ITEMS = ${JSON.stringify(correctHrefs)};
+  function fix() {
+    // VuePress's default theme renders the dropdown twice — once for the
+    // desktop nav, once for the mobile nav screen. Both share the same
+    // selector and same item order, so patch every anchor by index modulo
+    // ITEMS.length.
+    var anchors = document.querySelectorAll('ul.vp-navbar-dropdown a');
+    if (!anchors.length || ITEMS.length === 0) return;
+    anchors.forEach(function (a, i) {
+      var item = ITEMS[i % ITEMS.length];
+      if (item) a.setAttribute('href', item.href);
+    });
+  }
+  // Periodic in case Vue re-renders (e.g. on color-mode toggle).
+  setInterval(fix, 500);
+})();`
 
 export default defineUserConfig({
   base,
@@ -75,6 +106,9 @@ export default defineUserConfig({
   lang: 'en-US',
   title: 'Versioned VuePress Example',
   description: `Docs at version ${versionKey}`,
+  head: [
+    ['script', {}, switcherHrefFix],
+  ],
   theme: defaultTheme({
     repo: 'vordimous/static-site-multiversion',
     navbar: [
