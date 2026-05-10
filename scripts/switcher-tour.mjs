@@ -5,10 +5,14 @@
 // For each builder it:
 //   1. Visits /<builder>/next/, finds the version switcher (bolted-on
 //      <select> or native nav dropdown), and reads the option list.
-//   2. For each option, navigates to that version's URL, asserts the
-//      response is 2xx, captures any failed network requests (broken
-//      assets), and verifies the dropdown is still present.
-//   3. Saves a per-builder screenshot of the /next/ page with the menu
+//   2. For each option, CLICKS the matching dropdown item, waits for
+//      navigation, asserts the resulting URL matches the expected
+//      version path, captures any failed network requests, and verifies
+//      the dropdown is still present on the destination page.
+//   3. Requires the dropdown to be present on every version (next AND
+//      historical). The dropdown is part of the contract — historical
+//      builds that lack it are real bugs to fix, not exemptions.
+//   4. Saves a per-builder screenshot of the /next/ page with the menu
 //      expanded, plus tmp/tour/summary.json with full results.
 //
 // Usage:
@@ -98,6 +102,43 @@ async function readMenu(b) {
   return null
 }
 
+// Trims trailing slashes / index.html so URL comparisons are robust
+// across builders that emit foo/ vs foo/index.html.
+function normalizePath(p) {
+  return (p || '').replace(/\/index\.html$/, '/').replace(/\/+$/, '') || '/'
+}
+
+// Clicks the dropdown item that corresponds to `opt`, dispatching a
+// real change/click event so the page navigates exactly the way a
+// human-driven click would. Bolted-on <select>s navigate via their
+// change handler; native nav dropdowns navigate via the anchor's
+// default click action.
+async function clickItem(b, opt) {
+  if (b.bolted) {
+    // selectOption fires the 'change' event the shim listens for.
+    await page.selectOption('#version-switcher select', opt.value)
+    return
+  }
+  // Native dropdown: open the trigger, then click the anchor whose
+  // raw href attribute matches what we captured. We iterate locators
+  // instead of using a CSS attribute selector to avoid escaping
+  // edge cases in the captured href values.
+  const trigger = await page.$(b.native.trigger)
+  if (trigger) await trigger.click({ force: true }).catch(() => {})
+  await page.waitForTimeout(200)
+  const items = page.locator(b.native.item)
+  const count = await items.count()
+  for (let i = 0; i < count; i++) {
+    const item = items.nth(i)
+    const href = await item.getAttribute('href')
+    if (href === opt.value) {
+      await item.click()
+      return
+    }
+  }
+  throw new Error(`menu item not found for href=${opt.value}`)
+}
+
 // For bolted-on selects, derive each version's URL by swapping the
 // matching segment in the current pathname (the same logic the shim
 // uses to navigate when the user picks an option).
@@ -154,19 +195,54 @@ for (const b of BUILDERS) {
   await page.screenshot({ path: path.join(OUT_DIR, `${b.name}.png`) })
   if (HEADED && HOLD_MS > 0) await page.waitForTimeout(HOLD_MS)
 
-  // Visit every version. Track per-version status + asset health.
+  // Click every version's dropdown item in turn. Chains across pages
+  // (no goto reset) so we exercise the click path from each visited
+  // version, not just from /next/.
   const visits = []
   for (const opt of menu) {
     if (!opt.href) continue
     failedRequests = []
+    const expectedPath = normalizePath(new URL(opt.href).pathname)
     let status = null
-    try {
-      const r = await page.goto(opt.href, { waitUntil: 'networkidle', timeout: 30000 })
-      status = r ? r.status() : null
-    } catch (e) {
-      status = `error: ${e.message}`
+    let clickError = null
+
+    // Capture the document-level response for the destination so we can
+    // report the HTTP status. Pages 404s and redirects show up here.
+    let navStatus = null
+    const onResponse = (resp) => {
+      try {
+        if (resp.request().resourceType() !== 'document') return
+        if (normalizePath(new URL(resp.url()).pathname) !== expectedPath) return
+        navStatus = resp.status()
+      } catch { /* swallow */ }
     }
-    await page.waitForTimeout(800)
+    page.on('response', onResponse)
+
+    try {
+      // Run the click and the URL wait in parallel: clickItem triggers
+      // navigation; waitForURL resolves once the page actually lands at
+      // the expected path. waitForURL is robust to trailing-slash /
+      // index.html differences via the predicate.
+      await Promise.all([
+        page.waitForURL(
+          (u) => normalizePath(new URL(u).pathname) === expectedPath,
+          { timeout: 30000 },
+        ),
+        clickItem(b, opt),
+      ])
+      await page.waitForLoadState('networkidle')
+      status = navStatus ?? 'unknown'
+    } catch (e) {
+      clickError = e.message
+      status = `error: ${e.message}`
+    } finally {
+      page.off('response', onResponse)
+    }
+    await page.waitForTimeout(400)
+
+    const actualPath = normalizePath(new URL(page.url()).pathname)
+    const urlMatch = actualPath === expectedPath
+
     const dropdownPresent = b.bolted
       ? await page.evaluate(() => !!document.querySelector('#version-switcher select'))
       : await page.evaluate(t => !!document.querySelector(t), b.native.trigger)
@@ -174,11 +250,12 @@ for (const b of BUILDERS) {
     visits.push({
       key: opt.value,
       url: opt.href,
+      expectedPath,
+      actualPath,
+      urlMatch,
       status,
+      clickError,
       dropdownPresent,
-      // Historical versions predate the switcher integration; we only
-      // require a dropdown on the build-time `next` version.
-      isCurrent: opt.value === 'next' || opt.href?.endsWith('/next/'),
       brokenRequests: failedRequests
         .filter(r => !r.url.includes('/favicon.ico'))
         .map(r => `${r.status || r.error} ${r.url}`),
@@ -210,15 +287,22 @@ for (const row of summary) {
   }
   process.stdout.write(`  ${row.builder.padEnd(11)} ${row.kind.padEnd(6)} ${row.options.length} versions\n`)
   for (const v of row.visits) {
-    // Historical versions predate the switcher integration, so no menu
-    // is acceptable there. Current (next) must have a menu.
-    const menuOk = v.isCurrent ? v.dropdownPresent : true
-    const ok = v.status === 200 && menuOk && v.brokenRequests.length === 0
+    // Dropdown is part of the contract on every version page, not just
+    // /next/ — historical builds that lack it are real bugs.
+    const ok = v.status === 200
+      && v.urlMatch
+      && v.dropdownPresent
+      && v.brokenRequests.length === 0
+      && !v.clickError
     if (ok) totalOk++; else totalFail++
     const flag = ok ? 'OK ' : 'XX '
-    const drop = v.dropdownPresent ? 'menu  ' : (v.isCurrent ? 'NO-menu' : 'no-menu')
+    const drop = v.dropdownPresent ? 'menu  ' : 'NO-menu'
     const broken = v.brokenRequests.length ? ` broken=${v.brokenRequests.length}` : ''
-    process.stdout.write(`    ${flag} ${String(v.status).padEnd(4)} ${drop} ${v.key}${broken}\n`)
+    const urlNote = v.urlMatch ? '' : ` URL-mismatch(got=${v.actualPath})`
+    process.stdout.write(`    ${flag} ${String(v.status).padEnd(4)} ${drop} ${v.key}${urlNote}${broken}\n`)
+    if (v.clickError) {
+      process.stdout.write(`        ! click: ${v.clickError}\n`)
+    }
     for (const br of v.brokenRequests.slice(0, 3)) {
       process.stdout.write(`        ! ${br}\n`)
     }
