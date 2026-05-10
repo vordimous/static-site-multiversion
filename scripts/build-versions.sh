@@ -126,6 +126,23 @@ copy_switcher() {
   fi
 }
 
+# Injects the bolted version-switcher mount into HTML files in the
+# per-version output that don't already have a dropdown of their own.
+# Lets historical builds (whose source commits predate the integration)
+# still ship a working dropdown without rewriting tags.
+inject_mount() {
+  local key="$1" out url_base
+  out="$(key_outdir "$key")"
+  if [ -n "$SITE_BASE" ]; then
+    url_base="/$SITE_BASE/$key"
+  else
+    url_base="/$key"
+  fi
+  if [ -x "$SCRIPT_DIR/inject-mount.sh" ]; then
+    "$SCRIPT_DIR/inject-mount.sh" "$out" "$url_base" || true
+  fi
+}
+
 # 2. Build each historical version into the shared $DIST_DIR. If $CACHE_DIR is
 #    configured and we have a SHA match for the tag, restore the cached output
 #    instead of cloning + rebuilding.
@@ -147,6 +164,7 @@ while IFS= read -r row; do
         mkdir -p "$out_dir"
         cp -R "$cache_path/." "$out_dir/"
         copy_switcher "$key"
+        inject_mount "$key"
         continue
       fi
     fi
@@ -173,6 +191,7 @@ while IFS= read -r row; do
   )
 
   copy_switcher "$key"
+  inject_mount "$key"
 
   if [ -n "$CACHE_DIR" ] && [ -n "${sha:-}" ] && [ -d "$out_dir" ]; then
     cache_path="$CACHE_DIR/$sha/$key"
@@ -204,6 +223,7 @@ HEAD_DEPLOY_VERSIONS="$DEPLOY_VERSIONS"
   eval "$BUILD_CMD"
 )
 copy_switcher "$NEXT_KEY"
+inject_mount "$NEXT_KEY"
 
 # 4. Publish the canonical (merged) versions.json so runtime/hybrid switcher
 #    shims in any version can fetch ../versions.json and discover the full
