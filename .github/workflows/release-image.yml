@@ -30,7 +30,19 @@ jobs:
           fetch-depth: 0
 
       - name: Materialize all remote branches locally
-        run: git fetch origin '+refs/heads/*:refs/heads/*'
+        # actions/checkout with fetch-depth: 0 already fetched every remote
+        # branch into refs/remotes/origin/*. We just need local heads for
+        # them too so the Dockerfile's `git clone -b <branch>` against
+        # file:///src can resolve them. Skip the currently-checked-out
+        # branch (default is master) since git refuses to overwrite it.
+        run: |
+          current=$(git rev-parse --abbrev-ref HEAD)
+          git for-each-ref --format='%(refname:lstrip=3)' refs/remotes/origin/ |
+            grep -vE "^(HEAD|${current})$" |
+            while read -r b; do
+              git branch --force "$b" "origin/$b"
+            done
+          git branch --list
 
       - uses: docker/setup-buildx-action@v3
 
