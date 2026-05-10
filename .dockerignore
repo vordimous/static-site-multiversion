@@ -1,6 +1,11 @@
 # Keep .git so the multi-stage build can clone historical demo-* refs.
 
 .demo
+# Re-include the merged docroot specifically: Dockerfile.serve COPYs
+# .demo/_serve from the build context (the workflow pre-stages it via
+# downloaded artifacts). The rest of .demo (per-builder build trees,
+# clone artifacts) stays out.
+!.demo/_serve
 .cache
 tmp
 **/node_modules
