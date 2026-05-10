@@ -27,3 +27,14 @@ SITE_VERSION_KEY=next npm run build
 ```
 
 Output is at `../../dist/next/`.
+
+## Multi-version build
+
+When invoking the orchestrator against a real consumer repo whose deploy branch points at this example:
+
+```bash
+REPO_URL=https://github.com/you/your-site.git \
+  INSTALL_CMD="npm install" \
+  BUILD_CMD="npm run build" \
+  scripts/build-versions.sh
+```

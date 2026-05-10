@@ -29,6 +29,16 @@ REPO_URL="file://$REPO_ROOT"
 SERVE_ROOT="$REPO_ROOT/.demo/_serve"
 CACHE_DIR="${CACHE_DIR:-$REPO_ROOT/.cache}"
 
+# Per-iteration mktemp files are tracked here so the EXIT trap reaps them
+# even on early failures, instead of relying on the OS to clean up.
+DEMO_TMPFILES=()
+cleanup_tmpfiles() {
+  if [ "${#DEMO_TMPFILES[@]}" -gt 0 ]; then
+    rm -f "${DEMO_TMPFILES[@]}"
+  fi
+}
+trap cleanup_tmpfiles EXIT
+
 [ -f "$DEPLOY_VERSIONS_FILE" ] || { echo "demo-all: $DEPLOY_VERSIONS_FILE not found" >&2; exit 1; }
 [ -x "$ORCHESTRATOR" ]         || { echo "demo-all: $ORCHESTRATOR not executable" >&2; exit 1; }
 
@@ -69,6 +79,7 @@ run_builder() {
   # the global axis is used directly.
   local merged_deploy
   merged_deploy="$(mktemp)"
+  DEMO_TMPFILES+=("$merged_deploy")
   if [ -f "$per_example" ]; then
     jq -s '.[0] + .[1]' "$DEPLOY_VERSIONS_FILE" "$per_example" > "$merged_deploy"
   else
@@ -80,6 +91,7 @@ run_builder() {
   # global axis without failing the historical builds.
   local filtered_deploy
   filtered_deploy="$(mktemp)"
+  DEMO_TMPFILES+=("$filtered_deploy")
   jq -c '.[]' "$merged_deploy" | while IFS= read -r entry; do
     local tag
     tag="$(printf '%s' "$entry" | jq -r '.tag')"

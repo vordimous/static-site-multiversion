@@ -20,13 +20,16 @@
 #   INSTALL_CMD         install command per version    (default: pnpm install)
 #   BUILD_CMD           build command per version      (default: pnpm build)
 #   NEXT_KEY            version key for HEAD           (default: next)
+#   NEXT_LABEL          dropdown label for HEAD        (default: $NEXT_KEY)
 #   SWITCHER_JS         path to switcher.js to copy
 #                       into each per-version output   (default: $script_dir/switcher.js)
 #   CACHE_DIR           SHA-keyed artifact cache root  (default: empty = disabled)
 #
 # INSTALL_CMD and BUILD_CMD are passed through `eval`, so they accept full
 # shell syntax (pipes, &&, subshells). Quote anything that needs to survive
-# expansion at the call site.
+# expansion at the call site. They run with cwd=$BUILD_DIR/<key>/ for
+# historical clones (the clone's repo root) and cwd=$PWD for the HEAD build,
+# so site-relative paths resolve consistently against each version's source.
 #
 # Builder contract: each build must honor SITE_VERSION_KEY and DIST_DIR (and
 # SITE_BASE when set), writing output to:
@@ -58,6 +61,7 @@ SITE_BASE="${SITE_BASE:-}"
 INSTALL_CMD="${INSTALL_CMD:-pnpm install}"
 BUILD_CMD="${BUILD_CMD:-pnpm build}"
 NEXT_KEY="${NEXT_KEY:-next}"
+NEXT_LABEL="${NEXT_LABEL:-$NEXT_KEY}"
 SWITCHER_JS="${SWITCHER_JS:-$SCRIPT_DIR/switcher.js}"
 CACHE_DIR="${CACHE_DIR:-}"
 
@@ -73,15 +77,16 @@ fi
 
 mkdir -p "$DIST_DIR" "$BUILD_DIR"
 
-# Per-builder canonical output prefix: $DIST_DIR/[$SITE_BASE/]
-canonical_prefix="$DIST_DIR"
+# Per-builder output root: $DIST_DIR/[$SITE_BASE/]. Every per-version dir
+# and the canonical versions.json land directly under this path.
+output_root="$DIST_DIR"
 if [ -n "$SITE_BASE" ]; then
-  canonical_prefix="$canonical_prefix/$SITE_BASE"
+  output_root="$output_root/$SITE_BASE"
 fi
-mkdir -p "$canonical_prefix"
+mkdir -p "$output_root"
 
-# Resolves the per-key output dir under the canonical prefix.
-key_outdir() { printf '%s/%s' "$canonical_prefix" "$1"; }
+# Resolves the per-key output dir under the output root.
+key_outdir() { printf '%s/%s' "$output_root" "$1"; }
 
 # 1. Compose the canonical manifest. This is the list switcher shims fetch
 #    at runtime, so it lists every navigable version: deploy-versions.json
@@ -92,15 +97,24 @@ key_outdir() { printf '%s/%s' "$canonical_prefix" "$1"; }
 #    or similar self-reference).
 MERGED_MANIFEST="$(mktemp -t merged-versions.XXXXXX)"
 trap 'rm -f "$MERGED_MANIFEST"' EXIT
-NEXT_ENTRY="$(jq -nc --arg k "$NEXT_KEY" '[{ key: $k, label: $k }]')"
+NEXT_ENTRY="$(jq -nc --arg k "$NEXT_KEY" --arg l "$NEXT_LABEL" '[{ key: $k, label: $l }]')"
 jq -s '.[0] + .[1]' "$DEPLOY_VERSIONS" <(printf '%s' "$NEXT_ENTRY") > "$MERGED_MANIFEST"
 
 echo "build-versions: canonical manifest composed (deploy-versions + $NEXT_KEY)"
 
-# Resolves a tag (or branch) into its commit SHA inside the source repo.
+# Resolves a tag (or branch) into the SHA of the commit it points to inside
+# the source repo. For annotated tags `git ls-remote` returns two refs:
+# `refs/tags/X` (the tag-object SHA) and `refs/tags/X^{}` (the commit it
+# points at). The build clones at the commit, so the cache must key on the
+# commit SHA, not the tag-object SHA. Try the peeled ref first; if empty
+# (lightweight tag, no peel exists), fall back to the plain ref or a branch.
 resolve_sha() {
-  git ls-remote "$REPO_URL" "refs/tags/$1" "refs/heads/$1" 2>/dev/null \
-    | head -n1 | awk '{print $1}'
+  local sha
+  sha="$(git ls-remote "$REPO_URL" "refs/tags/$1^{}" 2>/dev/null | awk 'NR==1{print $1}')"
+  if [ -z "$sha" ]; then
+    sha="$(git ls-remote "$REPO_URL" "refs/tags/$1" "refs/heads/$1" 2>/dev/null | awk 'NR==1{print $1}')"
+  fi
+  printf '%s' "$sha"
 }
 
 # Drops a switcher.js into the per-version output dir, when configured.
@@ -167,6 +181,8 @@ while IFS= read -r row; do
     cp -R "$out_dir/." "$cache_path/"
     echo "build-versions: cached $tag@$sha -> $cache_path"
   fi
+# Each entry is base64-encoded by jq so a newline inside any field can't
+# split the row across two iterations of the read loop.
 done < <(jq -rc '.[] | @base64' "$DEPLOY_VERSIONS")
 
 # 3. Build HEAD as `$NEXT_KEY` into the same $DIST_DIR. HEAD always rebuilds
@@ -194,8 +210,8 @@ copy_switcher "$NEXT_KEY"
 #    list, including versions added after their own build was cached. chmod
 #    explicitly because mktemp's 600 default would otherwise propagate
 #    through cp and nginx (running as a non-root user) would 403 the file.
-cp "$MERGED_MANIFEST" "$canonical_prefix/versions.json"
-chmod 644 "$canonical_prefix/versions.json"
-echo "build-versions: canonical manifest at $canonical_prefix/versions.json"
+cp "$MERGED_MANIFEST" "$output_root/versions.json"
+chmod 644 "$output_root/versions.json"
+echo "build-versions: canonical manifest at $output_root/versions.json"
 
 echo "build-versions: done. output in $DIST_DIR"

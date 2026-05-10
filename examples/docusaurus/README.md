@@ -27,6 +27,17 @@ SITE_VERSION_KEY=next npm run build
 
 Output is at `../../dist/next/`.
 
+## Multi-version build
+
+When invoking the orchestrator against a real consumer repo whose deploy branch points at this example:
+
+```bash
+REPO_URL=https://github.com/you/your-site.git \
+  INSTALL_CMD="npm install" \
+  BUILD_CMD="npm run build" \
+  scripts/build-versions.sh
+```
+
 ## Note on Docusaurus's own versioning feature
 
 Docusaurus has a built-in versioning feature (`docs.versions`) that snapshots docs into per-version directories at build time. That solves a different problem: keeping all versions in **one** repo. This contract is for keeping each version in **its own git tag** and merging them at deploy time. The two approaches are complementary, not redundant.

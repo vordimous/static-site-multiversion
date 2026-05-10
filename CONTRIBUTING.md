@@ -34,6 +34,16 @@ It exercises `scripts/build-versions.sh` against a synthetic git repo using `tes
 
 `shellcheck scripts/*.sh test/*.sh` should pass clean before merging.
 
+## Repo tooling
+
+Helper scripts under `scripts/` that aren't part of the contract itself:
+
+- [`scripts/demo-all.sh`](scripts/demo-all.sh) and [`scripts/demo-serve.sh`](scripts/demo-serve.sh): build and host the local cross-builder demo against this repo's own `demo-*` refs. See the README's "Try the demo locally".
+- [`scripts/screenshot.sh`](scripts/screenshot.sh): Playwright-based screenshot helper used to capture the demo for documentation. Set `HEADED=1` to watch it run.
+- [`scripts/switcher-tour.mjs`](scripts/switcher-tour.mjs): node script driven by `scripts/screenshot.sh` that walks each builder's version dropdown to verify the switcher works end-to-end. Detects both shim-rendered `<select>` switchers and the generators that bake their own native nav dropdown.
+
+These are repo development aids only. Consumers of the contract don't need them.
+
 ## Code style
 
 - Bash: `set -euo pipefail` at the top, quote all expansions, prefer subshells for env scoping.

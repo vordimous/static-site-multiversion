@@ -1,13 +1,20 @@
 # Reference GitHub Actions wrapper around scripts/build-versions.sh.
 #
-# Replace `your-org/your-site` with your repository slug. Set vars.SITE_BASE
-# in the repository settings if your site is served under a path prefix.
+# Set vars.SITE_BASE in the repository settings if your site is served under
+# a path prefix.
 #
 # This wrapper does three things on top of the portable script:
-#   1. Caches $DIST_DIR keyed by hash(deploy-versions.json). Historical builds
-#      are immutable, so a cache hit skips them and only HEAD rebuilds.
+#   1. Restores a SHA-keyed artifact cache at $CACHE_DIR. The orchestrator
+#      resolves each tag to its commit SHA and looks for $CACHE_DIR/<sha>/<key>/
+#      before cloning, so already-built historical versions skip clone+build
+#      entirely. Tags are immutable, so once cached they stay cached.
 #   2. Sets up the toolchain the example builders need (Node + pnpm here).
 #   3. Uploads $DIST_DIR as a Pages artifact and deploys it.
+#
+# Step 2 is the only generator-specific piece. If your site is Hugo-only, drop
+# the pnpm/setup-node steps and replace them with `uses: peaceiris/actions-hugo@v3`.
+# If it's MkDocs, swap in `actions/setup-python@v5` and a pip install. The
+# cache + build + upload spine stays the same.
 
 name: Build & deploy versioned site
 
@@ -28,6 +35,7 @@ concurrency:
 env:
   DIST_DIR: dist
   BUILD_DIR: build
+  CACHE_DIR: .cache/ssm
   REPO_URL: ${{ github.server_url }}/${{ github.repository }}.git
   SITE_BASE: ${{ vars.SITE_BASE }}
 
@@ -37,12 +45,16 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Restore cached dist
-        id: dist-cache
-        uses: actions/cache/restore@v4
+      # SHA-keyed cache. The runner key needs to bust when CI image or tooling
+      # changes; the per-tag SHAs live inside the cache directory and don't
+      # belong in the cache key. Bump v1 -> v2 to invalidate the whole cache.
+      - name: Restore historical-build cache
+        uses: actions/cache@v4
         with:
-          path: ${{ env.DIST_DIR }}
-          key: dist-${{ hashFiles('deploy-versions.json') }}
+          path: ${{ env.CACHE_DIR }}
+          key: ssm-cache-v1-${{ runner.os }}
+          restore-keys: |
+            ssm-cache-v1-
 
       - uses: pnpm/action-setup@v4
         with:
@@ -57,29 +69,16 @@ jobs:
         run: pnpm install
 
       - name: Build all versions
-        if: steps.dist-cache.outputs.cache-hit != 'true'
         env:
           NODE_OPTIONS: --max_old_space_size=4096
         run: scripts/build-versions.sh
 
-      - name: Build HEAD only (cache hit)
-        if: steps.dist-cache.outputs.cache-hit == 'true'
-        env:
-          NODE_OPTIONS: --max_old_space_size=4096
-          SITE_VERSION_KEY: next
-          DIST_DIR: ${{ github.workspace }}/${{ env.DIST_DIR }}
-        run: pnpm build
-
-      - name: Save dist cache
-        if: steps.dist-cache.outputs.cache-hit != 'true'
-        uses: actions/cache/save@v4
-        with:
-          path: ${{ env.DIST_DIR }}
-          key: dist-${{ hashFiles('deploy-versions.json') }}
-
+      # If SITE_BASE is set, the build wrote output to $DIST_DIR/$SITE_BASE/...
+      # GitHub Pages serves the artifact at /<repo>/, so when SITE_BASE matches
+      # the repo name, uploading $DIST_DIR/$SITE_BASE avoids a doubled prefix.
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: ${{ env.DIST_DIR }}/${{ env.SITE_BASE }}
+          path: ${{ env.SITE_BASE && format('{0}/{1}', env.DIST_DIR, env.SITE_BASE) || env.DIST_DIR }}
 
   deploy:
     runs-on: ubuntu-latest

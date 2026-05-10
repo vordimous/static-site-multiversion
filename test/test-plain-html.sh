@@ -30,6 +30,7 @@ assert_file() {
 # --- Scenario 1: no SITE_BASE -----------------------------------------------
 
 sandbox="$(mktemp -d)"
+# shellcheck disable=SC2064  # capture sandbox path at trap-set time on purpose
 trap "rm -rf $sandbox" EXIT
 
 echo
@@ -40,8 +41,11 @@ echo "scenario: plain-html, no SITE_BASE"
 )
 assert_file "$sandbox/dist1/next/index.html"
 assert_file "$sandbox/dist1/next/guide.html"
-assert_file "$sandbox/dist1/next/switcher.js"
 assert_file "$sandbox/dist1/next/versions.json"
+# switcher.js is dropped in by the orchestrator (scripts/build-versions.sh
+# copy_switcher), not by the example's own build.sh. The plain-html src/
+# does not include one, so a standalone build correctly omits it; the
+# multi-version test in test-build-versions.sh exercises the copy.
 
 # --- Scenario 2: with SITE_BASE ---------------------------------------------
 

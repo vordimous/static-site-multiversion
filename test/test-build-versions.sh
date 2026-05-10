@@ -115,6 +115,16 @@ scenario_default() {
   assert_grep "1.0"  "$sandbox/site/dist/versions.json"
   assert_grep "next" "$sandbox/site/dist/versions.json"
 
+  # Manifest shape: valid JSON array of exactly the three navigable keys, in
+  # the documented order (deploy-versions entries first, HEAD last).
+  if jq -e '. | length == 3 and .[0].key == "0.9" and .[1].key == "1.0" and .[2].key == "next"' \
+        "$sandbox/site/dist/versions.json" >/dev/null; then
+    PASS=$((PASS + 1))
+  else
+    echo "  FAIL: canonical manifest has unexpected shape" >&2
+    FAIL=$((FAIL + 1))
+  fi
+
   # The switcher shim is dropped into every per-version output dir so each
   # version's <script src="./switcher.js"> resolves locally.
   for key in 0.9 1.0 next; do
@@ -249,10 +259,139 @@ scenario_cache() {
   fi
 }
 
+# --- Scenario 5: annotated tags resolve to commit SHA, not tag-object SHA ---
+#
+# Lightweight tags point directly at a commit, so `git ls-remote refs/tags/X`
+# returns the commit SHA. Annotated tags wrap a tag object around the commit,
+# so the same lookup returns the tag-object SHA and the cache key would never
+# match the actual build. resolve_sha must use the `^{}` peel suffix to
+# dereference annotated tags to their target commit.
+
+scenario_annotated_tag() {
+  local sandbox cache annotated_sha cached_dir
+  sandbox="$(mktemp -d)"
+  cache="$(mktemp -d)"
+  # shellcheck disable=SC2064  # capture sandbox path at trap-set time on purpose
+  trap "rm -rf $sandbox $cache" RETURN
+  make_sandbox "$sandbox"
+
+  cd "$sandbox/site"
+  # Replace v0.9 with an annotated tag pointing at the same commit. Capture
+  # the commit SHA before deleting the lightweight tag.
+  local v09_commit
+  v09_commit="$(git rev-parse v0.9)"
+  git tag -d v0.9 >/dev/null
+  git tag -a v0.9 -m "annotated 0.9" "$v09_commit"
+
+  REPO_URL="file://$sandbox/site" \
+  INSTALL_CMD="true" \
+  BUILD_CMD="./fake-build.sh" \
+  DIST_DIR="$sandbox/site/dist" \
+  BUILD_DIR="$sandbox/site/build" \
+  CACHE_DIR="$cache" \
+    "$SCRIPT" >/dev/null
+
+  # The cache should be keyed under the *commit* SHA (what git rev-parse
+  # returns for the tag's target), not the tag-object SHA.
+  annotated_sha="$(git -C "$sandbox/site" rev-parse 'v0.9^{}')"
+  cached_dir="$cache/$annotated_sha/0.9"
+  if [ -f "$cached_dir/index.html" ]; then
+    PASS=$((PASS + 1))
+  else
+    echo "  FAIL: annotated tag cached under wrong SHA (expected $annotated_sha)" >&2
+    FAIL=$((FAIL + 1))
+  fi
+}
+
+# --- Scenario 6: nested pages reach switcher.js via relative href -----------
+#
+# The orchestrator copies scripts/switcher.js into every per-version output
+# root. A page at <key>/sub/page.html that references `../switcher.js` must
+# resolve to that copy — i.e. switcher.js must land at the per-version root,
+# not deeper. This guards the "no per-example asset wiring required" promise.
+
+scenario_nested_pages() {
+  local sandbox
+  sandbox="$(mktemp -d)"
+  # shellcheck disable=SC2064  # capture sandbox path at trap-set time on purpose
+  trap "rm -rf $sandbox" RETURN
+  make_sandbox "$sandbox"
+
+  # Extend the fake builder so it also writes a nested page that references
+  # ../switcher.js. Only HEAD runs from this updated builder; the historical
+  # clones still use the original fake-build.sh from their tag (tags are
+  # immutable). That's fine for this scenario — the orchestrator runs
+  # copy_switcher uniformly, so any per-version output dir validates the
+  # claim.
+  cat > "$sandbox/site/fake-build.sh" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+: "${SITE_VERSION_KEY:?}"
+: "${DIST_DIR:?}"
+out="$DIST_DIR"
+[ -n "${SITE_BASE:-}" ] && out="$out/$SITE_BASE"
+out="$out/$SITE_VERSION_KEY"
+mkdir -p "$out/sub"
+echo "<!doctype html><title>$SITE_VERSION_KEY</title>" > "$out/index.html"
+cat > "$out/sub/page.html" <<HTML
+<!doctype html><title>nested</title>
+<div id="version-switcher"></div>
+<script src="../switcher.js" defer></script>
+HTML
+EOF
+  chmod +x "$sandbox/site/fake-build.sh"
+
+  REPO_URL="file://$sandbox/site" \
+  INSTALL_CMD="true" \
+  BUILD_CMD="./fake-build.sh" \
+  DIST_DIR="$sandbox/site/dist" \
+  BUILD_DIR="$sandbox/site/build" \
+    "$SCRIPT" >/dev/null
+
+  assert_file "$sandbox/site/dist/next/sub/page.html"
+  # The reference target of `../switcher.js` from next/sub/page.html resolves
+  # to next/switcher.js — the orchestrator's copy_switcher must have placed
+  # it there. Also check the historical keys got their copy at the right
+  # depth (their build doesn't write the nested page, but copy_switcher
+  # still runs).
+  for key in 0.9 1.0 next; do
+    assert_file "$sandbox/site/dist/$key/switcher.js"
+  done
+}
+
+# --- Scenario 7: NEXT_LABEL customizes the HEAD entry's dropdown label ------
+
+scenario_next_label() {
+  local sandbox
+  sandbox="$(mktemp -d)"
+  # shellcheck disable=SC2064  # capture sandbox path at trap-set time on purpose
+  trap "rm -rf $sandbox" RETURN
+  make_sandbox "$sandbox"
+
+  REPO_URL="file://$sandbox/site" \
+  INSTALL_CMD="true" \
+  BUILD_CMD="./fake-build.sh" \
+  DIST_DIR="$sandbox/site/dist" \
+  BUILD_DIR="$sandbox/site/build" \
+  NEXT_LABEL="Latest" \
+    "$SCRIPT" >/dev/null
+
+  if jq -e '.[-1] | .key == "next" and .label == "Latest"' \
+        "$sandbox/site/dist/versions.json" >/dev/null; then
+    PASS=$((PASS + 1))
+  else
+    echo "  FAIL: NEXT_LABEL not applied to HEAD entry" >&2
+    FAIL=$((FAIL + 1))
+  fi
+}
+
 run_scenario "default settings"         scenario_default
 run_scenario "with SITE_BASE prefix"    scenario_site_base
 run_scenario "empty deploy-versions"    scenario_empty_versions
 run_scenario "SHA cache hit/miss"       scenario_cache
+run_scenario "annotated tags peel SHA"  scenario_annotated_tag
+run_scenario "nested-page switcher"     scenario_nested_pages
+run_scenario "NEXT_LABEL custom"        scenario_next_label
 
 echo
 echo "results: $PASS passed, $FAIL failed"

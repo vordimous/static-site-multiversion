@@ -29,6 +29,17 @@ SITE_VERSION_KEY=v1 SITE_BASE=docs DIST_DIR=$PWD/dist npm run build
 # -> $PWD/dist/docs/v1/index.html
 ```
 
+## Multi-version build
+
+When invoking the orchestrator against a real consumer repo whose deploy branch points at this example:
+
+```bash
+REPO_URL=https://github.com/you/your-site.git \
+  INSTALL_CMD="npm install" \
+  BUILD_CMD="npm run build" \
+  scripts/build-versions.sh
+```
+
 ## Why VitePress alongside VuePress
 
 VitePress is a Vite-based rewrite from the same team. It uses Vue 3, ships fast incremental builds, and has a different config surface (`base` + `outDir` directly on the root config object instead of nested under a theme). Keeping both examples lets readers compare the two Vue-flavored options side-by-side.

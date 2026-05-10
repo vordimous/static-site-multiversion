@@ -30,6 +30,10 @@ SITE_VERSION_KEY=next ./build.sh
 
 Output is at `../../dist/next/`. No `npm install` step needed — Hugo has no JS dependencies.
 
+## Version switcher
+
+Hugo wires the shared client-side switcher: each page mounts `<div id="version-switcher" data-mode="hybrid">` with an inline seed and references `./switcher.js`. The orchestrator copies [`scripts/switcher.js`](../../scripts/switcher.js) into every per-version output directory, and the hybrid mode renders the seed first then fetches the canonical `versions.json` to pick up newer releases without rebuilding old versions.
+
 ## Multi-version build
 
 Pass through to the orchestrator with the right command:

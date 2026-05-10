@@ -36,7 +36,7 @@ Output is at `../../dist/next/` relative to this example.
 
 ## Multi-version build
 
-The orchestrator in `scripts/build-versions.sh` clones each historical tag, copies the merged `versions.json` into the clone, and invokes the build with `SITE_VERSION_KEY` set. To run it against a real repo whose deploy branch points at this example:
+The orchestrator in `scripts/build-versions.sh` clones each historical tag and invokes the build with `SITE_VERSION_KEY` set. Each clone keeps its committed `src/versions.json` seed; after all builds finish, the orchestrator publishes the canonical merged `versions.json` to `$DIST_DIR/[$SITE_BASE/]versions.json` for runtime/hybrid switchers to fetch. To run it against a real repo whose deploy branch points at this example:
 
 ```bash
 REPO_URL=https://github.com/you/your-site.git \

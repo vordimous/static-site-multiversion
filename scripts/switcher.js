@@ -93,7 +93,10 @@
     if (!existing) return false;
     if (existing.options.length !== versions.length) return false;
     for (var i = 0; i < versions.length; i++) {
-      if (existing.options[i].value !== versions[i].key) return false;
+      var opt = existing.options[i];
+      var expectedLabel = versions[i].label || versions[i].key;
+      if (opt.value !== versions[i].key) return false;
+      if (opt.textContent !== expectedLabel) return false;
     }
     return true;
   }

@@ -15,6 +15,8 @@ docker run --rm -p 8080:80 ghcr.io/vordimous/static-site-multiversion:latest
 # open http://localhost:8080/
 ```
 
+(If you've forked the repo, the [release-image workflow](.github/workflows/release-image.yml) publishes to `ghcr.io/<your-owner>/static-site-multiversion` instead.)
+
 Or build from source (also runs nginx, but rebuilds each example from this repo's own demo refs first):
 
 ```bash
@@ -22,7 +24,12 @@ scripts/demo-all.sh     # build every example × every demo version
 scripts/demo-serve.sh   # host them on nginx at http://localhost:8080
 ```
 
-`demo-all.sh` builds each `examples/<builder>/` along two axes of versioning, merged at runtime: the global demo timeline ([deploy-versions.demo.json](deploy-versions.demo.json) at the repo root, with `demo-v0.9` / `demo-v1.0` tags and the `demo-unstable` branch) and each builder's own per-example refs (`examples/<builder>/deploy-versions.json`, used to anchor real generator-version tags like `eleventy-v3` or `hugo-v0-145`). Output lands in a shared docroot at `.demo/_serve/<builder>/<key>/`. `demo-serve.sh` runs `nginx:alpine` in docker against that docroot with a read-only bind mount, so re-running `demo-all.sh` updates the live site without restarting the container.
+`demo-all.sh` builds each `examples/<builder>/` along two version axes, merged into the same dropdown:
+
+1. **Global demo timeline** ([deploy-versions.demo.json](deploy-versions.demo.json) at the repo root): the `demo-v0.9` and `demo-v1.0` tags plus the `demo-unstable` branch. These are this repo's own demo refs, and they exercise the full multi-version flow against a real git history.
+2. **Per-builder refs** (`examples/<builder>/deploy-versions.json`): each builder's own generator-version tags (e.g. `eleventy-v3`, `hugo-v0-145`). The contract treats these like any other historical version, so a single dropdown can show both "0.9 / 1.0 / next" demo tags and "eleventy-v3 / eleventy-v2" generator tags.
+
+Output lands in a shared docroot at `.demo/_serve/<builder>/<key>/`. `demo-serve.sh` runs `nginx:alpine` in docker against that docroot with a read-only bind mount, so re-running `demo-all.sh` updates the live site without restarting the container.
 
 The landing page at `/` links into every built builder × version. Builders whose runtime toolchain (node, hugo, python + mkdocs) isn't installed locally are reported as skipped, not failed. Stop the container with `scripts/demo-serve.sh stop`.
 
@@ -44,6 +51,22 @@ A flat JSON array of versions to build alongside HEAD:
 ```
 
 `key` is the URL slug under which the version is served. `tag` is the git ref to clone. See [schemas/deploy-versions.schema.json](schemas/deploy-versions.schema.json).
+
+Wire the schema into your editor for autocomplete and validation. In VS Code, add to `.vscode/settings.json`:
+
+```json
+{
+  "json.schemas": [
+    { "fileMatch": ["deploy-versions*.json"], "url": "./schemas/deploy-versions.schema.json" }
+  ]
+}
+```
+
+Or validate from the command line with [`ajv-cli`](https://github.com/ajv-validator/ajv-cli):
+
+```bash
+npx ajv validate -s schemas/deploy-versions.schema.json -d deploy-versions.json
+```
 
 #### Patch-version tags
 
@@ -79,15 +102,29 @@ The shared shim at [scripts/switcher.js](scripts/switcher.js) supports three mod
 Mount template:
 
 ```html
-<div id="version-switcher" data-mode="hybrid" data-fallback="../next/">
+<div id="version-switcher"
+     data-mode="hybrid"
+     data-canonical="/<base>/versions.json"
+     data-fallback="/<base>/next/">
   <script type="application/json" id="version-switcher-seed">[{"key":"current","label":"current"}]</script>
 </div>
 <script src="./switcher.js" defer></script>
 ```
 
-`data-canonical="/<base>/versions.json"` and `data-fallback="/<base>/next/"` accept absolute URLs for nested pages where relative paths break.
+`data-canonical` and `data-fallback` should be absolute URL paths so the switcher works from nested pages (`/<builder>/<key>/sub/`). If both are omitted, the shim falls back to depth-0 relatives (`../versions.json`, `../next/`) which only resolve from each version's landing page.
 
-The orchestrator copies `scripts/switcher.js` into every per-version output directory so each version's `<script src="./switcher.js">` resolves locally — no per-example asset wiring required.
+The orchestrator copies `scripts/switcher.js` into every per-version output directory so each version's `<script src="./switcher.js">` resolves locally, no per-example asset wiring required.
+
+#### Two integration styles
+
+Examples integrate the switcher in one of two ways. Both are valid; pick whichever matches the generator you're using.
+
+| Style | Examples | How it works |
+| --- | --- | --- |
+| Shared shim | `plain-html`, `eleventy`, `hugo`, `astro` | Page reserves a `<div id="version-switcher">` slot, loads `./switcher.js`, and the shim renders a `<select>` from the seed and/or canonical manifest at runtime. |
+| Native navbar bake | `vitepress`, `vuepress`, `docusaurus`, `mkdocs` | The generator's own theme reads the canonical manifest (or `DEPLOY_VERSIONS` plus a `next` entry) at build time and emits the version dropdown straight into the rendered nav. No client JS from this repo. |
+
+Native bake produces a JS-free dropdown that fits each generator's UX. The shared shim is generator-agnostic and gives you `runtime` / `hybrid` modes for live discovery of new versions added after a build was cached. If you want both (a baked dropdown that still updates with the latest list), use the shim's `hybrid` mode in addition to or in place of the bake.
 
 ### 3. The builder contract
 
@@ -146,6 +183,10 @@ Each provider needs a thin wrapper that:
 
 Reference wrappers live under [ci/](ci/). Start with [ci/github-actions.yml](ci/github-actions.yml).
 
+## Tests
+
+Run the suite with [`scripts/test.sh`](scripts/test.sh). It exercises [`scripts/build-versions.sh`](scripts/build-versions.sh) end-to-end against a synthetic git repo plus a smoke test for the plain-html example. The same suite runs on every push and pull request via [.github/workflows/test.yml](.github/workflows/test.yml), which also enforces `shellcheck` clean across `scripts/` and `test/`.
+
 ### SHA-keyed artifact cache
 
 Set `CACHE_DIR=/some/path` and `scripts/build-versions.sh` will, for each entry in `deploy-versions.json`:
@@ -163,16 +204,18 @@ Combined with the runtime switcher, this lets you ship updates to `next` without
 
 ## Routing conventions
 
-Two common URL layouts, both supported by the same build:
+Two common URL layouts, both supported by the same orchestrator. `SITE_BASE` controls which one a given run produces:
 
-| Layout | URL shape | When to use |
+| Layout | URL shape | How to produce |
 | --- | --- | --- |
-| Symmetric | `/<SITE_BASE>/<key>/...` for every version | GitHub Pages projects, anything served under a path prefix |
-| Promoted-next | `/...` for `next`, `/<SITE_BASE>/<key>/...` for older versions | Custom domains where the latest docs live at the apex |
+| Symmetric | `/<SITE_BASE>/<key>/...` for every version | One run with `SITE_BASE` set. Output lands under `$DIST_DIR/$SITE_BASE/<key>/`. |
+| Promoted-next | `/...` for `next`, `/<SITE_BASE>/<key>/...` for older versions | Two runs: build HEAD with no `SITE_BASE` so `next/` lands at `$DIST_DIR/next/`, then run again with `SITE_BASE` set so historical versions land under `$DIST_DIR/$SITE_BASE/<key>/`. The deploy step uploads `$DIST_DIR` as a whole. |
 
-The orchestration produces both layouts in `$DIST_DIR`. The deploy step picks which subset to publish.
+Pick one layout per repo. Mixing them in the same deploy works but the version switcher's path-rewriting logic assumes a consistent shape, so deep links across versions need both old and new builds to share whichever layout you chose.
 
 ## Wanted
+
+Each item below is a real contribution opportunity. See [CONTRIBUTING.md](CONTRIBUTING.md) for the step-by-step recipe (it's short).
 
 - [ ] `ci/gitlab-ci.yml` reference
 - [ ] `examples/next/` (Next.js with statically exported `output: 'export'`)

@@ -29,6 +29,10 @@ pip install -r requirements.txt
 SITE_VERSION_KEY=next ./build.sh
 ```
 
+## Version switcher
+
+MkDocs bakes the version dropdown into its native navbar at build time (via a generated `versions.yml` consumed by the theme) rather than mounting the shared client-side `switcher.js`. The dropdown is fully static, which fits MkDocs's no-JS-required model. If you want runtime discovery of new versions instead, swap to the shared shim by mounting `<div id="version-switcher" data-mode="hybrid">` in a custom template and dropping the bake step.
+
 ## Multi-version build
 
 When invoking the orchestrator, point `BUILD_CMD` and `INSTALL_CMD` at this example's tooling:
