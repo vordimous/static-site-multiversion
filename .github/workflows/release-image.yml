@@ -12,7 +12,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write   # for creating GitHub Releases on `v*` tag pushes
   packages: write
 
 concurrency:
@@ -70,3 +70,25 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+      - name: Create GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          body: |
+            Multi-version demo image for `${{ github.ref_name }}`.
+
+            ```bash
+            docker run --rm -p 8080:80 ghcr.io/${{ github.repository }}:${{ github.ref_name }}
+            # open http://localhost:8080/
+            ```
+
+            Other tags pushed for this build:
+
+            - `latest` (always tracks the default branch)
+            - `${{ github.ref_name }}` (this release)
+            - short SHA `sha-${{ github.sha }}`
+
+            See the [README](README.md) for the contract this image
+            demonstrates and the [Dockerfile](Dockerfile) for how it's built.
