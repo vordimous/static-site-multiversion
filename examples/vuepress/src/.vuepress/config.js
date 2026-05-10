@@ -99,6 +99,28 @@ const switcherHrefFix = `(function () {
   setInterval(fix, 500);
 })();`
 
+// Patching the DOM href is enough for `<a>.href` reads but vue-router
+// intercepts the click and dispatches via its internal route table,
+// which still has the doubled-prefix path from config. Capture-phase
+// click handler overrides that: it preventDefaults the framework's
+// click and does a plain window.location assignment to the correct
+// absolute URL.
+const switcherClickFix = `(function () {
+  var ITEMS = ${JSON.stringify(correctHrefs)};
+  document.addEventListener('click', function (e) {
+    var a = e.target && e.target.closest && e.target.closest('ul.vp-navbar-dropdown a');
+    if (!a) return;
+    var anchors = document.querySelectorAll('ul.vp-navbar-dropdown a');
+    var idx = Array.prototype.indexOf.call(anchors, a);
+    if (idx < 0) return;
+    var item = ITEMS[idx % ITEMS.length];
+    if (!item) return;
+    e.preventDefault();
+    e.stopPropagation();
+    window.location.href = item.href;
+  }, true);
+})();`
+
 export default defineUserConfig({
   base,
   dest,
@@ -108,6 +130,7 @@ export default defineUserConfig({
   description: `Docs at version ${versionKey}`,
   head: [
     ['script', {}, switcherHrefFix],
+    ['script', {}, switcherClickFix],
   ],
   theme: defaultTheme({
     repo: 'vordimous/static-site-multiversion',

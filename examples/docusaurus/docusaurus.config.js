@@ -63,6 +63,26 @@ const switcherHrefFix = `(function () {
   setInterval(fix, 500);
 })();`
 
+// React Router intercepts internal `<a>` clicks and dispatches via its
+// internal route table, which still holds the doubled-prefix path. The
+// DOM patcher above corrects href attributes for non-click consumers
+// (and styling), but clicks need a capture-phase override.
+const switcherClickFix = `(function () {
+  var ITEMS = ${JSON.stringify(correctHrefs)};
+  document.addEventListener('click', function (e) {
+    var a = e.target && e.target.closest && e.target.closest('.dropdown__menu .dropdown__link');
+    if (!a) return;
+    var anchors = document.querySelectorAll('.dropdown__menu .dropdown__link');
+    var idx = Array.prototype.indexOf.call(anchors, a);
+    if (idx < 0) return;
+    var item = ITEMS[idx];
+    if (!item) return;
+    e.preventDefault();
+    e.stopPropagation();
+    window.location.href = item.href;
+  }, true);
+})();`
+
 /** @type {import('@docusaurus/types').Config} */
 const config = {
   title: 'Versioned Docusaurus Example',
@@ -83,6 +103,11 @@ const config = {
       tagName: 'script',
       attributes: {},
       innerHTML: switcherHrefFix,
+    },
+    {
+      tagName: 'script',
+      attributes: {},
+      innerHTML: switcherClickFix,
     },
   ],
   i18n: { defaultLocale: 'en', locales: ['en'] },
