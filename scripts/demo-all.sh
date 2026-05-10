@@ -14,11 +14,26 @@
 # available locally are skipped and reported, not failed.
 #
 # Usage:
-#   scripts/demo-all.sh                # all examples
-#   scripts/demo-all.sh plain-html     # one example
+#   scripts/demo-all.sh                       # all examples
+#   scripts/demo-all.sh plain-html            # one example
 #   scripts/demo-all.sh plain-html hugo
+#   scripts/demo-all.sh --no-index plain-html # skip top-level index.html /
+#                                             # versions.json (use when this
+#                                             # is one of several parallel
+#                                             # partial runs that will be
+#                                             # merged later, e.g. CI matrix)
 
 set -euo pipefail
+
+WRITE_INDEX=1
+ARGS=()
+for a in "$@"; do
+  case "$a" in
+    --no-index) WRITE_INDEX=0 ;;
+    *) ARGS+=("$a") ;;
+  esac
+done
+set -- "${ARGS[@]+"${ARGS[@]}"}"
 
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$REPO_ROOT"
@@ -228,84 +243,13 @@ for b in "${TARGETS[@]}"; do
   dispatch "$b"
 done
 
-# Top-level landing page that links into each built builder.
-write_index() {
-  local out="$PUBLISH_ROOT/index.html"
-  {
-    cat <<'HTML'
-<!doctype html>
-<html lang="en">
-<head>
-  <meta charset="utf-8">
-  <title>static-site-multiversion local demo</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <style>
-    body { font-family: system-ui, sans-serif; max-width: 48rem; margin: 2rem auto; padding: 0 1rem; }
-    h1 { margin-bottom: 0.25rem; }
-    .lead { color: #555; margin-top: 0; }
-    table { border-collapse: collapse; width: 100%; margin-top: 1rem; }
-    th, td { text-align: left; padding: 0.4rem 0.6rem; border-bottom: 1px solid #eee; }
-    code { background: #f4f4f4; padding: 0 0.25rem; border-radius: 3px; }
-  </style>
-</head>
-<body>
-  <h1>static-site-multiversion</h1>
-  <p class="lead">Local multi-version demo. Each row is the same site, built by a different generator from the same git history.</p>
-  <table>
-    <thead><tr><th>Builder</th><th>Versions</th></tr></thead>
-    <tbody>
-HTML
-    for b in "${ALL_BUILDERS[@]}"; do
-      [ -d "$PUBLISH_ROOT/$b" ] || continue
-      printf '      <tr><td><strong>%s</strong></td><td>' "$b"
-      # List every per-version subdir, with `next` last so HEAD is to the right.
-      versions=()
-      while IFS= read -r v; do
-        versions+=("$v")
-      done < <(find "$PUBLISH_ROOT/$b" -mindepth 1 -maxdepth 1 -type d -not -name next -exec basename {} \; 2>/dev/null | sort)
-      [ -d "$PUBLISH_ROOT/$b/next" ] && versions+=(next)
-      for k in "${versions[@]}"; do
-        printf '<a href="./%s/%s/">%s</a> ' "$b" "$k" "$k"
-      done
-      printf '</td></tr>\n'
-    done
-    cat <<'HTML'
-    </tbody>
-  </table>
-</body>
-</html>
-HTML
-  } > "$out"
-  echo "wrote $out"
-}
-
-write_index
-
-# Cross-builder index: machine-readable map of every built builder to its
-# per-builder canonical versions.json. Useful for tooling that wants to
-# discover the structure without scraping the HTML index.
-write_cross_index() {
-  local out="$PUBLISH_ROOT/versions.json"
-  local url_prefix="/"
-  if [ -n "$SITE_BASE_PREFIX" ]; then
-    url_prefix="/$SITE_BASE_PREFIX/"
-  fi
-  {
-    printf '{\n  "builders": [\n'
-    local first=1
-    for b in "${ALL_BUILDERS[@]}"; do
-      [ -d "$PUBLISH_ROOT/$b" ] || continue
-      [ -f "$PUBLISH_ROOT/$b/versions.json" ] || continue
-      if [ "$first" -eq 0 ]; then printf ',\n'; fi
-      first=0
-      printf '    { "name": "%s", "versions": "%s%s/versions.json", "default": "next" }' "$b" "$url_prefix" "$b"
-    done
-    printf '\n  ]\n}\n'
-  } > "$out"
-  echo "wrote $out"
-}
-
-write_cross_index
+# Write the top-level landing page (index.html) and cross-builder
+# versions.json by delegating to scripts/demo-index.sh. Skipped when
+# --no-index is set, e.g. CI matrix shards that will be merged later.
+if [ "$WRITE_INDEX" -eq 1 ]; then
+  PUBLISH_ROOT="$PUBLISH_ROOT" SITE_BASE_PREFIX="$SITE_BASE_PREFIX" \
+    "$REPO_ROOT/scripts/demo-index.sh"
+fi
 
 echo
 echo "=== summary ==="

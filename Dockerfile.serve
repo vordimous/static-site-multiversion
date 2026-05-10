@@ -1,0 +1,20 @@
+# syntax=docker/dockerfile:1.6
+#
+# Thin nginx image that serves a pre-built .demo/_serve/ tree from the
+# build context. Used by .github/workflows/release-image.yml after a
+# matrix of parallel jobs builds each example natively and assembles the
+# combined docroot — building the multi-arch image is then just COPY of
+# static files, so it stays cheap even under QEMU.
+#
+# Local users who want a one-shot self-contained build (no pre-built
+# artifacts) should use the top-level Dockerfile, which still bakes
+# everything in-image via scripts/demo-all.sh.
+
+FROM nginx:alpine
+
+LABEL org.opencontainers.image.title="static-site-multiversion demo"
+LABEL org.opencontainers.image.description="Every example x every demo version, hosted on nginx."
+LABEL org.opencontainers.image.source="https://github.com/vordimous/static-site-multiversion"
+LABEL org.opencontainers.image.licenses="MIT"
+
+COPY .demo/_serve /usr/share/nginx/html

@@ -2,6 +2,19 @@
 # hosted on nginx) and pushes it to GitHub Container Registry. This is the
 # deployable showcase artifact, sibling to the GitHub Pages flow in
 # .github/workflows/demos.yml.
+#
+# Pipeline:
+#   1. `build` — matrix job, one runner per example. Each runs natively
+#      on amd64 (no QEMU), uploads its .demo/_serve/<builder>/ tree as an
+#      artifact. Wall time becomes max(builder), not sum(builder).
+#   2. `assemble` — downloads every per-builder artifact, restores the
+#      shared .demo/_serve/ layout, writes the top-level index.html and
+#      cross-builder versions.json via scripts/demo-index.sh, and
+#      republishes the merged tree as one artifact.
+#   3. `image` — pulls the merged artifact and builds Dockerfile.serve
+#      (nginx + COPY) for both linux/amd64 and linux/arm64. With no
+#      compute in the image build, multi-arch under QEMU is just static
+#      file copy and stays cheap.
 
 name: Release demo image
 
@@ -20,21 +33,21 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  build-and-push:
+  build:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        builder: [plain-html, vuepress, vitepress, astro, docusaurus, eleventy, hugo, mkdocs]
     steps:
       - uses: actions/checkout@v4
         with:
-          # The Dockerfile clones historical demo-* refs from the repo's own
-          # .git via file://, so we need full history and all branches/tags.
+          # build-versions.sh clones historical demo-* refs from the
+          # repo's own .git via file://, so we need full history and all
+          # remote branches as local heads.
           fetch-depth: 0
 
       - name: Materialize all remote branches locally
-        # actions/checkout with fetch-depth: 0 already fetched every remote
-        # branch into refs/remotes/origin/*. We just need local heads for
-        # them too so the Dockerfile's `git clone -b <branch>` against
-        # file:///src can resolve them. Skip the currently-checked-out
-        # branch (default is master) since git refuses to overwrite it.
         run: |
           current=$(git rev-parse --abbrev-ref HEAD)
           git for-each-ref --format='%(refname:lstrip=3)' refs/remotes/origin/ |
@@ -42,12 +55,94 @@ jobs:
             while read -r b; do
               git branch --force "$b" "origin/$b"
             done
-          git branch --list
+
+      # Install every toolchain on every matrix runner. Each setup step
+      # is a few seconds — cheaper than per-builder branching, and keeps
+      # the matrix entries uniform.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - uses: peaceiris/actions-hugo@v3
+        with:
+          hugo-version: latest
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install mkdocs
+        run: pip install mkdocs
+
+      - name: Cache historical artifact builds
+        uses: actions/cache@v4
+        with:
+          path: .cache
+          key: demo-cache-image-${{ matrix.builder }}-v1-${{ runner.os }}
+
+      - name: Build ${{ matrix.builder }}
+        env:
+          CACHE_DIR: ${{ github.workspace }}/.cache
+        run: scripts/demo-all.sh --no-index ${{ matrix.builder }}
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: demo-${{ matrix.builder }}
+          path: .demo/_serve/${{ matrix.builder }}
+          if-no-files-found: error
+          retention-days: 1
+
+  assemble:
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download per-builder artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: demo-*
+          path: .demo/_serve
+
+      - name: Restore per-builder directory layout
+        # download-artifact drops each artifact into <path>/<artifact-name>/.
+        # Rename demo-<builder>/ back to <builder>/ so the docroot matches
+        # what scripts/demo-index.sh and Dockerfile.serve expect.
+        run: |
+          cd .demo/_serve
+          for d in demo-*; do
+            [ -d "$d" ] || continue
+            mv "$d" "${d#demo-}"
+          done
+          ls -la
+
+      - name: Write top-level index pages
+        run: scripts/demo-index.sh
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: demo-serve
+          path: .demo/_serve
+          if-no-files-found: error
+          retention-days: 1
+
+  image:
+    runs-on: ubuntu-latest
+    needs: assemble
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download merged docroot
+        uses: actions/download-artifact@v4
+        with:
+          name: demo-serve
+          path: .demo/_serve
 
       - uses: docker/setup-qemu-action@v3
         with:
           # Emulate arm64 on the amd64 runner so docker pull works for
-          # Apple Silicon and Linux arm64 hosts without a separate runner.
+          # Apple Silicon and Linux arm64 hosts. Cheap here because
+          # Dockerfile.serve has no compute — only COPY.
           platforms: linux/arm64
 
       - uses: docker/setup-buildx-action@v3
@@ -71,6 +166,7 @@ jobs:
       - uses: docker/build-push-action@v6
         with:
           context: .
+          file: Dockerfile.serve
           push: true
           platforms: linux/amd64,linux/arm64
           tags: ${{ steps.meta.outputs.tags }}
