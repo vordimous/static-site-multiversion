@@ -1,14 +1,14 @@
-# Builds each examples/<builder>/ as its own demo and deploys all of them
-# to one GitHub Pages site under per-builder paths:
+# Builds every example × every demo version via scripts/demo-all.sh and
+# deploys the result to GitHub Pages. Each builder lives at
 #
-#   /<builder>/next/...
+#   /<repo>/<builder>/<key>/...
 #
-# Each demo currently shows only the `next` version (HEAD). Once the rename
-# and reframe are merged, a follow-up can introduce per-builder demo tags so
-# the demos exercise the full multi-version flow end-to-end.
+# (where <repo> is the project Pages URL prefix, e.g. /static-site-multiversion/).
 #
-# This workflow is *this repo's* showcase. The reference wrapper users copy
-# into their own repos lives at ci/github-actions.yml.
+# This is the contract's full multi-version flow on Pages: the global
+# demo-* timeline plus each builder's per-example tags, both axes merged
+# into one canonical /<repo>/<builder>/versions.json that switcher shims
+# fetch at runtime.
 
 name: Deploy demos
 
@@ -29,147 +29,66 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - builder: plain-html
-            install: 'true'
-            build: './build.sh'
-            runtime: none
-          - builder: vuepress
-            install: 'npm ci'
-            build: 'npm run build'
-            runtime: node
-          - builder: vitepress
-            install: 'npm ci'
-            build: 'npm run build'
-            runtime: node
-          - builder: astro
-            install: 'npm ci'
-            build: 'npm run build'
-            runtime: node
-          - builder: docusaurus
-            install: 'npm ci'
-            build: 'npm run build'
-            runtime: node
-          - builder: eleventy
-            install: 'npm ci'
-            build: 'npm run build'
-            runtime: node
-          - builder: hugo
-            install: 'true'
-            build: './build.sh'
-            runtime: hugo
-          - builder: mkdocs
-            install: 'pip install -r requirements.txt'
-            build: './build.sh'
-            runtime: python
     steps:
       - uses: actions/checkout@v4
+        with:
+          # The orchestrator clones historical demo-* refs from the repo's
+          # own .git via file://, so we need full history and every branch.
+          fetch-depth: 0
+
+      - name: Materialize all remote branches locally
+        # actions/checkout with fetch-depth: 0 already fetched every remote
+        # branch into refs/remotes/origin/*; create local heads so the
+        # orchestrator's `git clone -b <branch>` can resolve them. Skip
+        # the currently-checked-out branch — git refuses to overwrite it.
+        run: |
+          current=$(git rev-parse --abbrev-ref HEAD)
+          git for-each-ref --format='%(refname:lstrip=3)' refs/remotes/origin/ |
+            grep -vE "^(HEAD|${current})$" |
+            while read -r b; do
+              git branch --force "$b" "origin/$b"
+            done
 
       - uses: actions/setup-node@v4
-        if: matrix.runtime == 'node'
         with:
           node-version: 20
-          cache: npm
-          cache-dependency-path: examples/${{ matrix.builder }}/package-lock.json
 
       - uses: peaceiris/actions-hugo@v3
-        if: matrix.runtime == 'hugo'
         with:
           hugo-version: latest
 
       - uses: actions/setup-python@v5
-        if: matrix.runtime == 'python'
         with:
           python-version: '3.11'
 
-      - name: Seed version manifest
-        working-directory: examples/${{ matrix.builder }}
-        run: |
-          # Demo-only: each example's seed versions.json names just `next`.
-          # Real deployments would let the orchestrator merge in deploy-versions.json.
-          target="src/versions.json"
-          [ -d src ] || target="versions.json"
-          mkdir -p "$(dirname "$target")"
-          echo '[{"key":"next","label":"next"}]' > "$target"
+      - name: Install mkdocs
+        run: pip install mkdocs
 
-      - name: Build
-        working-directory: examples/${{ matrix.builder }}
+      - name: Cache historical artifact builds
+        uses: actions/cache@v4
+        with:
+          path: .cache
+          key: demo-cache-v1-${{ runner.os }}
+
+      - name: Build all demos via orchestrator
         env:
-          SITE_VERSION_KEY: next
-          SITE_BASE: ${{ matrix.builder }}
-          DIST_DIR: ${{ github.workspace }}/dist
-        run: |
-          ${{ matrix.install }}
-          ${{ matrix.build }}
-
-      - uses: actions/upload-artifact@v4
-        with:
-          name: dist-${{ matrix.builder }}
-          path: dist/${{ matrix.builder }}
-          if-no-files-found: error
-
-  aggregate:
-    runs-on: ubuntu-latest
-    needs: build
-    steps:
-      - uses: actions/download-artifact@v4
-        with:
-          path: dist-tmp
-
-      - name: Merge demos and write landing page
-        run: |
-          mkdir -p dist
-          for d in dist-tmp/dist-*; do
-            builder=$(basename "$d" | sed 's/^dist-//')
-            mkdir -p "dist/$builder"
-            cp -R "$d/." "dist/$builder/"
-          done
-
-          cat > dist/index.html <<'EOF'
-          <!doctype html>
-          <html lang="en">
-          <head>
-            <meta charset="utf-8">
-            <title>static-site-multiversion — demos</title>
-            <meta name="viewport" content="width=device-width, initial-scale=1">
-            <style>
-              body { font-family: system-ui, sans-serif; max-width: 40rem; margin: 2rem auto; padding: 0 1rem; }
-              h1 { margin-bottom: 0.25rem; }
-              .lead { color: #555; margin-top: 0; }
-              ul { padding-left: 1.25rem; }
-              li { margin: 0.4rem 0; }
-              code { background: #f4f4f4; padding: 0 0.25rem; border-radius: 3px; }
-            </style>
-          </head>
-          <body>
-            <h1>static-site-multiversion</h1>
-            <p class="lead">Live demos of the builder contract across seven generators.</p>
-            <p>Each link below is the same site, built by a different generator wired to the same env-var protocol (<code>SITE_VERSION_KEY</code> + <code>DIST_DIR</code>).</p>
-            <ul>
-              <li><a href="./plain-html/next/">plain HTML</a> — the contract distilled. The build is <code>cp</code>.</li>
-              <li><a href="./vuepress/next/">VuePress</a> — Vue-based docs.</li>
-              <li><a href="./vitepress/next/">VitePress</a> — Vite-powered, Vue 3 docs.</li>
-              <li><a href="./astro/next/">Astro</a> — general-purpose, content collections.</li>
-              <li><a href="./docusaurus/next/">Docusaurus</a> — React-based docs.</li>
-              <li><a href="./eleventy/next/">Eleventy</a> — minimal SSG, no shell wrapper.</li>
-              <li><a href="./hugo/next/">Hugo</a> — Go, single binary.</li>
-              <li><a href="./mkdocs/next/">MkDocs</a> — Python, cross-runtime proof.</li>
-            </ul>
-            <p><a href="https://github.com/vordimous/static-site-multiversion">Source on GitHub</a></p>
-          </body>
-          </html>
-          EOF
+          # Project Pages serves at /<repo>/, so every internal URL needs
+          # to start with that prefix. demo-all.sh nests every builder
+          # under .demo/_serve/<prefix>/<builder>/<key>/ and bakes the
+          # right `base` into each example's config.
+          SITE_BASE_PREFIX: ${{ github.event.repository.name }}
+          CACHE_DIR: ${{ github.workspace }}/.cache
+        run: scripts/demo-all.sh
 
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: dist
+          # The artifact's root maps to /<repo>/ on Pages, so we upload
+          # the prefix subtree directly (avoiding /<repo>/<repo>/...).
+          path: .demo/_serve/${{ github.event.repository.name }}
 
   deploy:
     runs-on: ubuntu-latest
-    needs: aggregate
+    needs: build
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}

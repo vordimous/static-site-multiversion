@@ -29,6 +29,18 @@ REPO_URL="file://$REPO_ROOT"
 SERVE_ROOT="$REPO_ROOT/.demo/_serve"
 CACHE_DIR="${CACHE_DIR:-$REPO_ROOT/.cache}"
 
+# Optional outer URL prefix that all builders nest under. Required for
+# project-style GitHub Pages deploys served at /<repo>/, where every link,
+# asset, and fetch URL needs to start with /<repo>/. When set, SITE_BASE
+# becomes "<prefix>/<builder>" and everything (per-builder dirs, the
+# landing page, the cross-builder index) lives under .demo/_serve/<prefix>/.
+# Leave empty for local serving where the docroot maps to "/".
+SITE_BASE_PREFIX="${SITE_BASE_PREFIX:-}"
+PUBLISH_ROOT="$SERVE_ROOT"
+if [ -n "$SITE_BASE_PREFIX" ]; then
+  PUBLISH_ROOT="$SERVE_ROOT/$SITE_BASE_PREFIX"
+fi
+
 # Per-iteration mktemp files are tracked here so the EXIT trap reaps them
 # even on early failures, instead of relying on the OS to clean up.
 DEMO_TMPFILES=()
@@ -57,6 +69,7 @@ fi
 # nginx bind mount (scripts/demo-serve.sh) doesn't lose its inode.
 mkdir -p "$SERVE_ROOT"
 find "$SERVE_ROOT" -mindepth 1 -delete
+mkdir -p "$PUBLISH_ROOT"
 
 RAN=()
 SKIPPED=()
@@ -111,6 +124,11 @@ run_builder() {
   fi
 
   local rc=0
+  local site_base="$builder"
+  if [ -n "$SITE_BASE_PREFIX" ]; then
+    site_base="$SITE_BASE_PREFIX/$builder"
+  fi
+
   DEPLOY_VERSIONS="$merged_deploy" \
   VERSIONS_MANIFEST="$manifest" \
   REPO_URL="$REPO_URL" \
@@ -118,7 +136,7 @@ run_builder() {
   BUILD_CMD="$build_cmd" \
   DIST_DIR="$SERVE_ROOT" \
   BUILD_DIR="$build_root" \
-  SITE_BASE="$builder" \
+  SITE_BASE="$site_base" \
   CACHE_DIR="$CACHE_DIR/$builder" \
     "$ORCHESTRATOR" || rc=$?
 
@@ -212,7 +230,7 @@ done
 
 # Top-level landing page that links into each built builder.
 write_index() {
-  local out="$SERVE_ROOT/index.html"
+  local out="$PUBLISH_ROOT/index.html"
   {
     cat <<'HTML'
 <!doctype html>
@@ -238,14 +256,14 @@ write_index() {
     <tbody>
 HTML
     for b in "${ALL_BUILDERS[@]}"; do
-      [ -d "$SERVE_ROOT/$b" ] || continue
+      [ -d "$PUBLISH_ROOT/$b" ] || continue
       printf '      <tr><td><strong>%s</strong></td><td>' "$b"
       # List every per-version subdir, with `next` last so HEAD is to the right.
       versions=()
       while IFS= read -r v; do
         versions+=("$v")
-      done < <(find "$SERVE_ROOT/$b" -mindepth 1 -maxdepth 1 -type d -not -name next -exec basename {} \; 2>/dev/null | sort)
-      [ -d "$SERVE_ROOT/$b/next" ] && versions+=(next)
+      done < <(find "$PUBLISH_ROOT/$b" -mindepth 1 -maxdepth 1 -type d -not -name next -exec basename {} \; 2>/dev/null | sort)
+      [ -d "$PUBLISH_ROOT/$b/next" ] && versions+=(next)
       for k in "${versions[@]}"; do
         printf '<a href="./%s/%s/">%s</a> ' "$b" "$k" "$k"
       done
@@ -267,16 +285,20 @@ write_index
 # per-builder canonical versions.json. Useful for tooling that wants to
 # discover the structure without scraping the HTML index.
 write_cross_index() {
-  local out="$SERVE_ROOT/versions.json"
+  local out="$PUBLISH_ROOT/versions.json"
+  local url_prefix="/"
+  if [ -n "$SITE_BASE_PREFIX" ]; then
+    url_prefix="/$SITE_BASE_PREFIX/"
+  fi
   {
     printf '{\n  "builders": [\n'
     local first=1
     for b in "${ALL_BUILDERS[@]}"; do
-      [ -d "$SERVE_ROOT/$b" ] || continue
-      [ -f "$SERVE_ROOT/$b/versions.json" ] || continue
+      [ -d "$PUBLISH_ROOT/$b" ] || continue
+      [ -f "$PUBLISH_ROOT/$b/versions.json" ] || continue
       if [ "$first" -eq 0 ]; then printf ',\n'; fi
       first=0
-      printf '    { "name": "%s", "versions": "/%s/versions.json", "default": "next" }' "$b" "$b"
+      printf '    { "name": "%s", "versions": "%s%s/versions.json", "default": "next" }' "$b" "$url_prefix" "$b"
     done
     printf '\n  ]\n}\n'
   } > "$out"
