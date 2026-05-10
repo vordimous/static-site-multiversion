@@ -54,8 +54,25 @@ page.on('response', resp => {
   if (resp.status() >= 400) failedRequests.push({ url: resp.url(), status: resp.status() })
 })
 
-async function readMenu(b) {
-  if (b.bolted) {
+// Detects which dropdown is rendered on the current page. The bolted
+// shim injects #version-switcher; if it's there we always prefer it,
+// because post-processed historical pages get the bolted shim even on
+// builders that ship a native dropdown at HEAD. Returns 'bolted' or
+// 'native' (or null if neither is present).
+async function detectKind(b) {
+  const hasBolted = await page.evaluate(
+    () => !!document.querySelector('#version-switcher select'),
+  )
+  if (hasBolted) return 'bolted'
+  if (b.native) {
+    const present = await page.$(b.native.trigger)
+    if (present) return 'native'
+  }
+  return null
+}
+
+async function readMenu(b, kind) {
+  if (kind === 'bolted') {
     return await page.evaluate(() => {
       const mount = document.getElementById('version-switcher')
       if (!mount) return null
@@ -71,7 +88,7 @@ async function readMenu(b) {
       }))
     })
   }
-  if (b.native) {
+  if (kind === 'native') {
     const trigger = await page.$(b.native.trigger)
     if (!trigger) return null
     await trigger.click({ force: true }).catch(() => {})
@@ -112,21 +129,21 @@ function normalizePath(p) {
 // real change/click event so the page navigates exactly the way a
 // human-driven click would. Bolted-on <select>s navigate via their
 // change handler; native nav dropdowns navigate via the anchor's
-// default click action.
-async function clickItem(b, opt) {
-  if (b.bolted) {
-    // selectOption fires the 'change' event the shim listens for.
+// default click action. For native, opens the trigger only if no
+// items are already attached — re-clicking a button-toggle trigger
+// would close the open menu.
+async function clickItem(b, kind, opt) {
+  if (kind === 'bolted') {
     await page.selectOption('#version-switcher select', opt.value)
     return
   }
-  // Native dropdown: open the trigger, then click the anchor whose
-  // raw href attribute matches what we captured. We iterate locators
-  // instead of using a CSS attribute selector to avoid escaping
-  // edge cases in the captured href values.
-  const trigger = await page.$(b.native.trigger)
-  if (trigger) await trigger.click({ force: true }).catch(() => {})
-  await page.waitForTimeout(200)
-  const items = page.locator(b.native.item)
+  let items = page.locator(b.native.item)
+  if ((await items.count()) === 0) {
+    const trigger = await page.$(b.native.trigger)
+    if (trigger) await trigger.click({ force: true }).catch(() => {})
+    await page.waitForTimeout(300)
+    items = page.locator(b.native.item)
+  }
   const count = await items.count()
   for (let i = 0; i < count; i++) {
     const item = items.nth(i)
@@ -170,15 +187,20 @@ for (const b of BUILDERS) {
   await page.waitForLoadState('networkidle')
   await page.waitForTimeout(1500)
 
-  let menu = await readMenu(b)
-  if (!menu || !menu.length) {
-    summary.push({ builder: b.name, mode: b.mode, kind: b.bolted ? 'bolted' : 'native', error: 'no menu found' })
+  const kind = await detectKind(b)
+  if (!kind) {
+    summary.push({ builder: b.name, mode: b.mode, kind: '-', error: 'no dropdown found' })
     continue
   }
-  if (b.bolted) menu = bolted_urls(page.url(), menu)
+  let menu = await readMenu(b, kind)
+  if (!menu || !menu.length) {
+    summary.push({ builder: b.name, mode: b.mode, kind, error: 'no menu found' })
+    continue
+  }
+  if (kind === 'bolted') menu = bolted_urls(page.url(), menu)
 
   // Snapshot of /next/ with the menu open for the screenshot output.
-  if (b.bolted) {
+  if (kind === 'bolted') {
     await page.evaluate(() => {
       const mount = document.getElementById('version-switcher')
       const select = mount?.querySelector('select')
@@ -219,6 +241,11 @@ for (const b of BUILDERS) {
     page.on('response', onResponse)
 
     try {
+      // Detect the dropdown kind on the CURRENT page (it can vary across
+      // versions: e.g. native at HEAD, bolted on historical pages that
+      // were post-processed to inject the shim).
+      const visitKind = await detectKind(b)
+      if (!visitKind) throw new Error('no dropdown on current page')
       // Run the click and the URL wait in parallel: clickItem triggers
       // navigation; waitForURL resolves once the page actually lands at
       // the expected path. waitForURL is robust to trailing-slash /
@@ -228,7 +255,7 @@ for (const b of BUILDERS) {
           (u) => normalizePath(new URL(u).pathname) === expectedPath,
           { timeout: 30000 },
         ),
-        clickItem(b, opt),
+        clickItem(b, visitKind, opt),
       ])
       await page.waitForLoadState('networkidle')
       status = navStatus ?? 'unknown'
@@ -243,9 +270,8 @@ for (const b of BUILDERS) {
     const actualPath = normalizePath(new URL(page.url()).pathname)
     const urlMatch = actualPath === expectedPath
 
-    const dropdownPresent = b.bolted
-      ? await page.evaluate(() => !!document.querySelector('#version-switcher select'))
-      : await page.evaluate(t => !!document.querySelector(t), b.native.trigger)
+    // Dropdown is present if either kind is detectable on the destination.
+    const dropdownPresent = (await detectKind(b)) !== null
 
     visits.push({
       key: opt.value,
@@ -265,7 +291,7 @@ for (const b of BUILDERS) {
   summary.push({
     builder: b.name,
     mode: b.mode,
-    kind: b.bolted ? 'bolted' : 'native',
+    kind,
     options: menu.map(o => ({ value: o.value, label: o.label, selected: o.selected })),
     visits,
   })
