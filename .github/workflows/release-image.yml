@@ -44,6 +44,12 @@ jobs:
             done
           git branch --list
 
+      - uses: docker/setup-qemu-action@v3
+        with:
+          # Emulate arm64 on the amd64 runner so docker pull works for
+          # Apple Silicon and Linux arm64 hosts without a separate runner.
+          platforms: linux/arm64
+
       - uses: docker/setup-buildx-action@v3
 
       - uses: docker/login-action@v3
@@ -66,6 +72,7 @@ jobs:
         with:
           context: .
           push: true
+          platforms: linux/amd64,linux/arm64
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
