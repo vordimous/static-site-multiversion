@@ -4,7 +4,7 @@ A portable contract for building multi-version static sites from git tags, gener
 
 **The env-var protocol is the standard; the bash script is one reference implementation.** Any builder that honors three things (a `deploy-versions.json` file, two env vars, and an output convention) plugs in. This repo ships eight worked examples (plain HTML plus seven SSGs across three runtimes) as evidence that the contract holds.
 
-> AI-assisted: I distilled this pattern from an existing VuePress workflow (Aklivity's [zilla-docs](https://github.com/aklivity/zilla-docs)) and used Claude to help draft the portable script, schema, and documentation. All content was reviewed for accuracy.
+> AI-assisted: I distilled this pattern from an existing VuePress v2 workflow that I built and ran in production for Aklivity's [zilla-docs](https://github.com/vordimous/zilla-docs). I used Claude to help draft the portable script, schema, and documentation. All content was reviewed for accuracy.
 
 ## Try the demo locally
 
@@ -12,28 +12,9 @@ The fastest way is the prebuilt image, which has every example × every demo ver
 
 ```bash
 docker run --rm -p 8080:80 ghcr.io/vordimous/static-site-multiversion:latest
-# open http://localhost:8080/
 ```
 
-(If you've forked the repo, the [release-image workflow](.github/workflows/release-image.yml) publishes to `ghcr.io/<your-owner>/static-site-multiversion` instead.)
-
-Or build from source (also runs nginx, but rebuilds each example from this repo's own demo refs first):
-
-```bash
-scripts/demo-all.sh     # build every example × every demo version
-scripts/demo-serve.sh   # host them on nginx at http://localhost:8080
-```
-
-`demo-all.sh` builds each `examples/<builder>/` along two version axes, merged into the same dropdown:
-
-1. **Global demo timeline** ([deploy-versions.demo.json](deploy-versions.demo.json) at the repo root): the `demo-v0.9` and `demo-v1.0` tags plus the `demo-unstable` branch. These are this repo's own demo refs, and they exercise the full multi-version flow against a real git history.
-2. **Per-builder refs** (`examples/<builder>/deploy-versions.json`): each builder's own generator-version tags (e.g. `eleventy-v3`, `hugo-v0-145`). The contract treats these like any other historical version, so a single dropdown can show both "0.9 / 1.0 / next" demo tags and "eleventy-v3 / eleventy-v2" generator tags.
-
-Output lands in a shared docroot at `.demo/_serve/<builder>/<key>/`. `demo-serve.sh` runs `nginx:alpine` in docker against that docroot with a read-only bind mount, so re-running `demo-all.sh` updates the live site without restarting the container.
-
-The landing page at `/` links into every built builder × version. Builders whose runtime toolchain (node, hugo, python + mkdocs) isn't installed locally are reported as skipped, not failed. Stop the container with `scripts/demo-serve.sh stop`.
-
-The same multi-stage [Dockerfile](Dockerfile) is what the [release-image workflow](.github/workflows/release-image.yml) pushes to GHCR on every commit to the default branch.
+Then open [http://localhost:8080/]()
 
 ## The contract
 
@@ -45,12 +26,12 @@ A flat JSON array of versions to build alongside HEAD:
 
 ```json
 [
-  { "key": "0.9", "tag": "0.9.x" },
-  { "key": "1.0", "tag": "1.0.x" }
+  { "tag": "0.9.x", "key": "0.9" },
+  { "tag": "1.0.x", "key": "1.0" }
 ]
 ```
 
-`key` is the URL slug under which the version is served. `tag` is the git ref to clone. See [schemas/deploy-versions.schema.json](schemas/deploy-versions.schema.json).
+`key` is the URL slug under which the version is served. `tag` is the git ref to clone. See [schemas/deploy-versions.schema.json](./schemas/deploy-versions.schema.json).
 
 Wire the schema into your editor for autocomplete and validation. In VS Code, add to `.vscode/settings.json`:
 
@@ -76,10 +57,16 @@ Because `key` and `tag` are decoupled, you can ship a fix to an older version wi
 [
   { "key": "0.9", "tag": "0.9.1" },
   { "key": "1.0", "tag": "1.0.2" }
+  { "tag": "0.9.1", "key": "0.9" },
+  { "tag": "1.0.2", "key": "1.0" },
+  { "tag": "1.0.2", "key": "v1" },
+  { "tag": "1.0.2", "key": "latest" }
 ]
 ```
 
 The version dropdown still shows `0.9` and `1.0`. Deep links to `/0.9/...` keep working. The build comes from the latest patch tag. Useful when you need to backport a typo fix, add a new section, or, in this repo's own demo, retroactively include a new builder example in older docs (`demo-v0.9.1` adds vitepress to `demo-v0.9`'s tree without inventing a new slug).
+
+By pointing more keys to the same `tag` you can make future proof canonical urls that won't break when you make updated. You may always want new users to land on the `latest` code, while a blog showcasing your version `1` features should point to the `v1` url. And the Roadmap for `1.0.x` changes should link to the `1.0` url.
 
 Patch tags pair especially well with the **runtime** and **hybrid** switcher modes: the dropdown in already-cached old versions reflects the new patch list as soon as the canonical `versions.json` is republished, with no rebuild.
 
@@ -134,6 +121,25 @@ Every builder honors two environment variables:
 - `DIST_DIR`: a shared output root. The build writes to `$DIST_DIR/$SITE_VERSION_KEY/` (or `$DIST_DIR/$SITE_BASE/$SITE_VERSION_KEY/` when `SITE_BASE` is set)
 
 Wiring those two vars into a generator is usually a few lines in its config. Each `examples/<builder>/` shows where.
+
+## Build from source
+
+This runs nginx, but rebuilds each example from this repo's own demo refs first:
+
+```bash
+scripts/demo-all.sh     # build every example × every demo version
+scripts/demo-serve.sh   # host them on nginx at http://localhost:8080
+```
+
+`demo-all.sh` builds each `examples/<builder>/` along two version axes, merged into the same dropdown:
+
+1. **Global demo timeline** ([deploy-versions.demo.json](deploy-versions.demo.json) at the repo root): the `demo-v0.9` and `demo-v1.0` tags plus the `demo-unstable` branch. These are this repo's own demo refs, and they exercise the full multi-version flow against a real git history.
+2. **Per-builder refs** (`examples/<builder>/deploy-versions.json`): each builder's own generator-version tags (e.g. `eleventy-v3`, `hugo-v0-145`). The contract treats these like any other historical version, so a single dropdown can show both "0.9 / 1.0 / next" demo tags and "eleventy-v3 / eleventy-v2" generator tags.
+
+Output lands in a shared docroot at `.demo/_serve/<builder>/<key>/`. `demo-serve.sh` runs `nginx:alpine` in docker against that docroot with a read-only bind mount, so re-running `demo-all.sh` updates the live site without restarting the container.
+
+The landing page at `/` links into every built builder × version. Builders whose runtime toolchain (node, hugo, python + mkdocs) isn't installed locally are reported as skipped, not failed. Stop the container with `scripts/demo-serve.sh stop`.
+The same multi-stage [Dockerfile](Dockerfile) is what the [release-image workflow](.github/workflows/release-image.yml) pushes to GHCR on every commit to the default branch.
 
 ## Worked examples
 
