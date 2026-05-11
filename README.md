@@ -26,12 +26,12 @@ A flat JSON array of versions to build alongside HEAD:
 
 ```json
 [
-  { "tag": "0.9.x", "key": "0.9" },
-  { "tag": "1.0.x", "key": "1.0" }
+  { "ref": "0.9.x", "key": "0.9" },
+  { "ref": "1.0.x", "key": "1.0" }
 ]
 ```
 
-`key` is the URL slug under which the version is served. `tag` is the git ref to clone. See [schemas/deploy-versions.schema.json](./schemas/deploy-versions.schema.json).
+`key` is the URL slug under which the version is served. `ref` is the git ref (tag or branch) to clone. See [schemas/deploy-versions.schema.json](./schemas/deploy-versions.schema.json).
 
 Wire the schema into your editor for autocomplete and validation. In VS Code, add to `.vscode/settings.json`:
 
@@ -51,22 +51,22 @@ npx ajv validate -s schemas/deploy-versions.schema.json -d deploy-versions.json
 
 #### Patch-version tags
 
-Because `key` and `tag` are decoupled, you can ship a fix to an older version without changing the slug anyone has bookmarked. Tag the patched commit (e.g. `0.9.1`) and update `deploy-versions.json` so the `0.9` slug now resolves to it:
+Because `key` and `ref` are decoupled, you can ship a fix to an older version without changing the slug anyone has bookmarked. Tag the patched commit (e.g. `0.9.1`) and update `deploy-versions.json` so the `0.9` slug now resolves to it:
 
 ```json
 [
-  { "key": "0.9", "tag": "0.9.1" },
-  { "key": "1.0", "tag": "1.0.2" }
-  { "tag": "0.9.1", "key": "0.9" },
-  { "tag": "1.0.2", "key": "1.0" },
-  { "tag": "1.0.2", "key": "v1" },
-  { "tag": "1.0.2", "key": "latest" }
+  { "key": "0.9", "ref": "0.9.1" },
+  { "key": "1.0", "ref": "1.0.2" }
+  { "ref": "0.9.1", "key": "0.9" },
+  { "ref": "1.0.2", "key": "1.0" },
+  { "ref": "1.0.2", "key": "v1" },
+  { "ref": "1.0.2", "key": "latest" }
 ]
 ```
 
 The version dropdown still shows `0.9` and `1.0`. Deep links to `/0.9/...` keep working. The build comes from the latest patch tag. Useful when you need to backport a typo fix, add a new section, or, in this repo's own demo, retroactively include a new builder example in older docs (`demo-v0.9.1` adds vitepress to `demo-v0.9`'s tree without inventing a new slug).
 
-By pointing more keys to the same `tag` you can make future proof canonical urls that won't break when you make updated. You may always want new users to land on the `latest` code, while a blog showcasing your version `1` features should point to the `v1` url. And the Roadmap for `1.0.x` changes should link to the `1.0` url.
+By pointing more keys to the same `ref` you can make future proof canonical urls that won't break when you make updated. You may always want new users to land on the `latest` code, while a blog showcasing your version `1` features should point to the `v1` url. And the Roadmap for `1.0.x` changes should link to the `1.0` url.
 
 Patch tags pair especially well with the **runtime** and **hybrid** switcher modes: the dropdown in already-cached old versions reflects the new patch list as soon as the canonical `versions.json` is republished, with no rebuild.
 

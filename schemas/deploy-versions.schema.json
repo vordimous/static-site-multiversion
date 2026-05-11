@@ -7,16 +7,16 @@
   "items": {
     "type": "object",
     "additionalProperties": false,
-    "required": ["key", "tag"],
+    "required": ["key", "ref"],
     "properties": {
       "key": {
         "type": "string",
         "description": "URL slug for this version. Becomes a path segment in the deployed site and the value of SITE_VERSION_KEY at build time.",
         "pattern": "^[a-zA-Z0-9._-]+$"
       },
-      "tag": {
+      "ref": {
         "type": "string",
-        "description": "Git ref (tag or branch) to clone for this version's source. Passed to `git clone --depth 1 -b <tag>`.",
+        "description": "Git ref (tag or branch) to clone for this version's source. Passed to `git clone --depth 1 -b <ref>`.",
         "minLength": 1
       },
       "label": {

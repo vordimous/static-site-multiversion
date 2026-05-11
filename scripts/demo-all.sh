@@ -121,12 +121,12 @@ run_builder() {
   filtered_deploy="$(mktemp)"
   DEMO_TMPFILES+=("$filtered_deploy")
   jq -c '.[]' "$merged_deploy" | while IFS= read -r entry; do
-    local tag
-    tag="$(printf '%s' "$entry" | jq -r '.tag')"
-    if git -C "$REPO_ROOT" cat-file -e "${tag}:examples/${builder}" 2>/dev/null; then
+    local ref
+    ref="$(printf '%s' "$entry" | jq -r '.ref')"
+    if git -C "$REPO_ROOT" cat-file -e "${ref}:examples/${builder}" 2>/dev/null; then
       printf '%s\n' "$entry"
     else
-      echo "demo-all: $builder: dropping ref '$tag' (examples/$builder/ missing at that ref)" >&2
+      echo "demo-all: $builder: dropping ref '$ref' (examples/$builder/ missing at that ref)" >&2
     fi
   done | jq -s '.' > "$filtered_deploy"
   mv "$filtered_deploy" "$merged_deploy"

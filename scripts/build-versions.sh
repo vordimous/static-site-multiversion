@@ -150,16 +150,16 @@ WRKDIR="$PWD"
 
 while IFS= read -r row; do
   key=$(echo "$row" | base64 --decode | jq -r '.key')
-  tag=$(echo "$row" | base64 --decode | jq -r '.tag')
+  ref=$(echo "$row" | base64 --decode | jq -r '.ref')
 
   out_dir="$(key_outdir "$key")"
 
   if [ -n "$CACHE_DIR" ]; then
-    sha="$(resolve_sha "$tag")"
+    sha="$(resolve_sha "$ref")"
     if [ -n "$sha" ]; then
       cache_path="$CACHE_DIR/$sha/$key"
       if [ -f "$cache_path/index.html" ]; then
-        echo "build-versions: cache hit for $tag@$sha -> $key"
+        echo "build-versions: cache hit for $ref@$sha -> $key"
         rm -rf "$out_dir"
         mkdir -p "$out_dir"
         cp -R "$cache_path/." "$out_dir/"
@@ -170,9 +170,9 @@ while IFS= read -r row; do
     fi
   fi
 
-  echo "build-versions: cloning $tag -> $BUILD_DIR/$key"
+  echo "build-versions: cloning $ref -> $BUILD_DIR/$key"
   rm -rf "${BUILD_DIR:?}/$key"
-  git -c advice.detachedHead=false clone --quiet --depth 1 -b "$tag" "$REPO_URL" "$BUILD_DIR/$key"
+  git -c advice.detachedHead=false clone --quiet --depth 1 -b "$ref" "$REPO_URL" "$BUILD_DIR/$key"
 
   echo "build-versions: building $key"
   (
@@ -198,7 +198,7 @@ while IFS= read -r row; do
     rm -rf "$cache_path"
     mkdir -p "$cache_path"
     cp -R "$out_dir/." "$cache_path/"
-    echo "build-versions: cached $tag@$sha -> $cache_path"
+    echo "build-versions: cached $ref@$sha -> $cache_path"
   fi
 # Each entry is base64-encoded by jq so a newline inside any field can't
 # split the row across two iterations of the read loop.

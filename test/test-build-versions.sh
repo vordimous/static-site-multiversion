@@ -64,8 +64,8 @@ make_sandbox() {
 
   cat > deploy-versions.json <<'EOF'
 [
-  {"key":"0.9","tag":"v0.9"},
-  {"key":"1.0","tag":"v1.0"}
+  {"key":"0.9","ref":"v0.9"},
+  {"key":"1.0","ref":"v1.0"}
 ]
 EOF
   git add deploy-versions.json
