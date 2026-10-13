@@ -28,6 +28,7 @@
 // ../next/) which only work from the per-version landing page.
 
 (function () {
+  var script = document.currentScript;
   var mount = document.getElementById('version-switcher');
   if (!mount) return;
 
@@ -105,10 +106,7 @@
     var keys = versions.map(function (v) { return v.key; });
     var path = window.location.pathname;
     var segments = path.split('/').filter(Boolean);
-    var idx = -1;
-    for (var i = 0; i < segments.length; i++) {
-      if (keys.indexOf(segments[i]) !== -1) { idx = i; break; }
-    }
+    var idx = versionSegmentIndex(segments, keys);
     var current = idx >= 0 ? segments[idx] : keys[0];
 
     var select = document.createElement('select');
@@ -131,5 +129,28 @@
     label.textContent = 'Version: ';
     label.appendChild(select);
     mount.appendChild(label);
+  }
+
+  // The orchestrator copies switcher.js into each version's root, so the
+  // script's own directory is the most reliable marker of which path segment
+  // is the version key. Matching segments against keys is only a fallback:
+  // it picks the wrong segment when SITE_BASE or a page slug equals a key.
+  function versionSegmentIndex(segments, keys) {
+    var root = scriptDirSegments();
+    if (root.length && root.length <= segments.length) {
+      var isPrefix = root.every(function (seg, i) { return seg === segments[i]; });
+      if (isPrefix) return root.length - 1;
+    }
+    for (var i = 0; i < segments.length; i++) {
+      if (keys.indexOf(segments[i]) !== -1) return i;
+    }
+    return -1;
+  }
+
+  function scriptDirSegments() {
+    if (!script || !script.src) return [];
+    var url = new URL(script.src, window.location.href);
+    if (url.origin !== window.location.origin) return [];
+    return url.pathname.replace(/[^/]*$/, '').split('/').filter(Boolean);
   }
 })();

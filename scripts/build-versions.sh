@@ -181,7 +181,7 @@ inject_mount() {
     url_base="/$key"
   fi
   if [ -x "$SCRIPT_DIR/inject-mount.sh" ]; then
-    "$SCRIPT_DIR/inject-mount.sh" "$out" "$url_base" || true
+    "$SCRIPT_DIR/inject-mount.sh" "$out" "$url_base" "$NEXT_KEY" || true
   fi
 }
 
