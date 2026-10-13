@@ -2,6 +2,7 @@
   "name": "static-site-multiversion",
   "version": "0.1.0",
   "private": true,
+  "license": "MIT",
   "description": "Tooling at the repo root: Playwright for screenshot verification of the demo flow. Each examples/<builder>/ owns its own package.json for the actual site build.",
   "scripts": {
     "screenshot": "scripts/screenshot.sh"

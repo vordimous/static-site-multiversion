@@ -33,6 +33,8 @@ A flat JSON array of versions to build alongside HEAD:
 
 `key` is the URL slug under which the version is served. `ref` is the git ref (tag or branch) to clone. See [schemas/deploy-versions.schema.json](./schemas/deploy-versions.schema.json).
 
+Keys must be unique, must start with a letter or digit, and must not equal the HEAD key (`next` by default). The orchestrator checks this before it touches the filesystem, because each key becomes a directory it deletes and recreates.
+
 Wire the schema into your editor for autocomplete and validation. In VS Code, add to `.vscode/settings.json`:
 
 ```json
@@ -56,23 +58,21 @@ Because `key` and `ref` are decoupled, you can ship a fix to an older version wi
 ```json
 [
   { "key": "0.9", "ref": "0.9.1" },
-  { "key": "1.0", "ref": "1.0.2" }
-  { "ref": "0.9.1", "key": "0.9" },
-  { "ref": "1.0.2", "key": "1.0" },
-  { "ref": "1.0.2", "key": "v1" },
-  { "ref": "1.0.2", "key": "latest" }
+  { "key": "1.0", "ref": "1.0.2" },
+  { "key": "v1", "ref": "1.0.2" },
+  { "key": "latest", "ref": "1.0.2" }
 ]
 ```
 
 The version dropdown still shows `0.9` and `1.0`. Deep links to `/0.9/...` keep working. The build comes from the latest patch tag. Useful when you need to backport a typo fix, add a new section, or, in this repo's own demo, retroactively include a new builder example in older docs (`demo-v0.9.1` adds vitepress to `demo-v0.9`'s tree without inventing a new slug).
 
-By pointing more keys to the same `ref` you can make future proof canonical urls that won't break when you make updated. You may always want new users to land on the `latest` code, while a blog showcasing your version `1` features should point to the `v1` url. And the Roadmap for `1.0.x` changes should link to the `1.0` url.
+By pointing more keys to the same `ref` you can make future-proof canonical URLs that won't break when you ship updates. You may always want new users to land on the `latest` code, while a blog showcasing your version `1` features should point to the `v1` url. And the Roadmap for `1.0.x` changes should link to the `1.0` url.
 
 Patch tags pair especially well with the **runtime** and **hybrid** switcher modes: the dropdown in already-cached old versions reflects the new patch list as soon as the canonical `versions.json` is republished, with no rebuild.
 
 ### 2. The version-switcher manifest
 
-Each example commits a `src/versions.json` (the **seed**) that snapshots whatever versions were known at build time. This is what the page can render synchronously without any network access — the noscript-friendly fallback.
+Each example commits a `src/versions.json` (the **seed**) that snapshots whatever versions were known at build time. This is what the page can render synchronously without any network access, so it is the noscript-friendly fallback.
 
 After every per-version build finishes, the orchestrator publishes the **canonical** merged list (deploy-versions + a `next` entry for HEAD) at `$DIST_DIR/[$SITE_BASE/]versions.json`. The version-switcher shim fetches this file at runtime so old versions can discover newer ones added after their own build was cached.
 
@@ -82,9 +82,9 @@ The shared shim at [scripts/switcher.js](scripts/switcher.js) supports three mod
 
 | Mode | Behavior | Use when |
 | --- | --- | --- |
-| `baked` | Render only from the inline JSON seed at build time. No fetch. | You want old versions frozen — historical docs never auto-discover new releases. |
+| `baked` | Render only from the inline JSON seed at build time. No fetch. | You want old versions frozen. Historical docs never auto-discover new releases. |
 | `runtime` | Ignore the seed. Fetch the canonical list and render from that. Show the `data-fallback` "View all versions" link if the fetch fails. | You always want the live list, accept that JS is required. |
-| `hybrid` | Render the seed first (works without network), then fetch the canonical list and replace the dropdown if it differs. Falls back to the seed on fetch failure. | Default. Best of both — works offline, updates live. |
+| `hybrid` | Render the seed first (works without network), then fetch the canonical list and replace the dropdown if it differs. Falls back to the seed on fetch failure. | Default. Best of both: works offline, updates live. |
 
 Mount template:
 
@@ -121,6 +121,8 @@ Every builder honors two environment variables:
 - `DIST_DIR`: a shared output root. The build writes to `$DIST_DIR/$SITE_VERSION_KEY/` (or `$DIST_DIR/$SITE_BASE/$SITE_VERSION_KEY/` when `SITE_BASE` is set)
 
 Wiring those two vars into a generator is usually a few lines in its config. Each `examples/<builder>/` shows where.
+
+A build that exits successfully but leaves no `index.html` in that directory fails the run. This usually means the ref predates the wiring, so the generator wrote to its default output directory instead.
 
 ## Build from source
 
@@ -167,7 +169,7 @@ REPO_URL=https://github.com/you/your-site.git \
   scripts/build-versions.sh
 ```
 
-Optional overrides documented in the script header. You can replace this script with any equivalent orchestrator (Make, a Go binary, a Node script) as long as it honors the contract — the env-var protocol is what builders rely on, not the script itself.
+Optional overrides documented in the script header. Historical clones go to a temporary directory that is removed on exit, unless you set `BUILD_DIR`. You can replace this script with any equivalent orchestrator (Make, a Go binary, a Node script) as long as it honors the contract. The env-var protocol is what builders rely on, not the script itself.
 
 ## Why this exists
 
@@ -191,7 +193,7 @@ Reference wrappers live under [ci/](ci/). Start with [ci/github-actions.yml](ci/
 
 ## Tests
 
-Run the suite with [`scripts/test.sh`](scripts/test.sh). It exercises [`scripts/build-versions.sh`](scripts/build-versions.sh) end-to-end against a synthetic git repo plus a smoke test for the plain-html example. The same suite runs on every push and pull request via [.github/workflows/test.yml](.github/workflows/test.yml), which also enforces `shellcheck` clean across `scripts/` and `test/`.
+Run the suite with [`scripts/test.sh`](scripts/test.sh). It exercises [`scripts/build-versions.sh`](scripts/build-versions.sh) end-to-end against a synthetic git repo, checks [`scripts/inject-mount.sh`](scripts/inject-mount.sh), smoke-tests the plain-html example, and runs [`scripts/switcher.js`](scripts/switcher.js) in headless Chromium. The browser test needs `npm ci && npx playwright install chromium` first. The same suite runs on every push and pull request via [.github/workflows/test.yml](.github/workflows/test.yml), which also enforces `shellcheck` clean across `scripts/` and `test/`.
 
 ### SHA-keyed artifact cache
 
@@ -204,7 +206,7 @@ Set `CACHE_DIR=/some/path` and `scripts/build-versions.sh` will, for each entry 
 
 `HEAD` (the `next` build) and any moving branch tip always rebuild because their commit SHAs change every time. Tags never move, so once built they're cached forever.
 
-In `actions/cache@v4`, key the cache on the repo + a manual bump: the SHA is in the path so per-tag keys aren't needed. To bust the cache, delete `$CACHE_DIR/<sha>/`.
+In `actions/cache@v4`, give each run its own key (for example `ssm-cache-v1-${{ runner.os }}-${{ github.run_id }}`) and restore with the prefix (`ssm-cache-v1-${{ runner.os }}-`). A cache key can't be overwritten, so a fixed key would never save the tags you add later. The SHA is in the path, so per-tag keys aren't needed. To bust one entry, delete `$CACHE_DIR/<sha>/`; to bust everything, bump `v1`.
 
 Combined with the runtime switcher, this lets you ship updates to `next` without touching any historical version's static output, and add a brand-new tag without rebuilding any prior tag's output.
 
@@ -232,4 +234,4 @@ Each item below is a real contribution opportunity. See [CONTRIBUTING.md](CONTRI
 
 ## License
 
-MIT (pending).
+MIT. See [LICENSE](LICENSE).
