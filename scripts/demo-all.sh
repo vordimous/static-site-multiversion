@@ -91,7 +91,7 @@ SKIPPED=()
 FAILED=()
 
 run_builder() {
-  local builder="$1" install_cmd="$2" build_cmd="$3" manifest="$4"
+  local builder="$1" install_cmd="$2" build_cmd="$3"
   local build_root="$REPO_ROOT/.demo/$builder/build"
   local per_example="$REPO_ROOT/examples/$builder/deploy-versions.json"
 
@@ -145,7 +145,6 @@ run_builder() {
   fi
 
   DEPLOY_VERSIONS="$merged_deploy" \
-  VERSIONS_MANIFEST="$manifest" \
   REPO_URL="$REPO_URL" \
   INSTALL_CMD="$install_cmd" \
   BUILD_CMD="$build_cmd" \
@@ -177,50 +176,43 @@ dispatch() {
     plain-html)
       run_builder plain-html \
         "true" \
-        "(cd examples/plain-html && ./build.sh)" \
-        "examples/plain-html/src/versions.json"
+        "(cd examples/plain-html && ./build.sh)"
       ;;
     vuepress)
       command -v node >/dev/null || { skip_builder vuepress "node not installed"; return; }
       run_builder vuepress \
         "(cd examples/vuepress && npm install --silent)" \
-        "(cd examples/vuepress && npm run build)" \
-        "examples/vuepress/src/versions.json"
+        "(cd examples/vuepress && npm run build)"
       ;;
     vitepress)
       command -v node >/dev/null || { skip_builder vitepress "node not installed"; return; }
       run_builder vitepress \
         "(cd examples/vitepress && npm install --silent)" \
-        "(cd examples/vitepress && npm run build)" \
-        "examples/vitepress/src/versions.json"
+        "(cd examples/vitepress && npm run build)"
       ;;
     astro)
       command -v node >/dev/null || { skip_builder astro "node not installed"; return; }
       run_builder astro \
         "(cd examples/astro && npm install --silent)" \
-        "(cd examples/astro && npm run build)" \
-        "examples/astro/src/versions.json"
+        "(cd examples/astro && npm run build)"
       ;;
     docusaurus)
       command -v node >/dev/null || { skip_builder docusaurus "node not installed"; return; }
       run_builder docusaurus \
         "(cd examples/docusaurus && npm install --silent)" \
-        "(cd examples/docusaurus && npm run build)" \
-        "examples/docusaurus/src/versions.json"
+        "(cd examples/docusaurus && npm run build)"
       ;;
     eleventy)
       command -v node >/dev/null || { skip_builder eleventy "node not installed"; return; }
       run_builder eleventy \
         "(cd examples/eleventy && npm install --silent)" \
-        "(cd examples/eleventy && npm run build)" \
-        "examples/eleventy/src/versions.json"
+        "(cd examples/eleventy && npm run build)"
       ;;
     hugo)
       command -v hugo >/dev/null || { skip_builder hugo "hugo not installed"; return; }
       run_builder hugo \
         "true" \
-        "(cd examples/hugo && ./build.sh)" \
-        "examples/hugo/versions.json"
+        "(cd examples/hugo && ./build.sh)"
       ;;
     mkdocs)
       command -v python3 >/dev/null || { skip_builder mkdocs "python3 not installed"; return; }
@@ -230,8 +222,7 @@ dispatch() {
       fi
       run_builder mkdocs \
         "true" \
-        "(cd examples/mkdocs && ./build.sh)" \
-        "examples/mkdocs/versions.json"
+        "(cd examples/mkdocs && ./build.sh)"
       ;;
     *)
       skip_builder "$builder" "unknown builder"

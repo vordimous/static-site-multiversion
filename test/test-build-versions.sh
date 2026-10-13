@@ -385,6 +385,117 @@ scenario_next_label() {
   fi
 }
 
+# --- Scenario 8: unsafe or ambiguous deploy-versions entries are rejected ---
+#
+# Keys become directories that the orchestrator `rm -rf`s, so a key of ".."
+# would delete the parent of $BUILD_DIR. The run must refuse before touching
+# the filesystem.
+
+scenario_invalid_manifest() {
+  local sandbox manifest rc
+  sandbox="$(mktemp -d)"
+  # shellcheck disable=SC2064  # capture sandbox path at trap-set time on purpose
+  trap "rm -rf $sandbox" RETURN
+  make_sandbox "$sandbox"
+  touch "$sandbox/site/sentinel"
+
+  for manifest in \
+    '[{"key":"..","ref":"v0.9"}]' \
+    '[{"key":".","ref":"v0.9"}]' \
+    '[{"key":"0.9","ref":"v0.9"},{"key":"0.9","ref":"v1.0"}]' \
+    '[{"key":"next","ref":"v0.9"}]' \
+    '[{"key":"0.9","ref":""}]' \
+    '{"key":"0.9","ref":"v0.9"}'; do
+    printf '%s' "$manifest" > "$sandbox/bad.json"
+    rc=0
+    REPO_URL="file://$sandbox/site" \
+    DEPLOY_VERSIONS="$sandbox/bad.json" \
+    INSTALL_CMD="true" \
+    BUILD_CMD="./fake-build.sh" \
+    DIST_DIR="$sandbox/site/dist" \
+    BUILD_DIR="$sandbox/site/build" \
+      "$SCRIPT" > "$sandbox/run.log" 2>&1 || rc=$?
+    if [ "$rc" -ne 0 ] && [ ! -e "$sandbox/site/dist" ] && [ -f "$sandbox/site/sentinel" ]; then
+      PASS=$((PASS + 1))
+    else
+      echo "  FAIL: manifest $manifest was not rejected up front (rc=$rc)" >&2
+      FAIL=$((FAIL + 1))
+    fi
+  done
+
+  rc=0
+  REPO_URL="file://$sandbox/site" \
+  INSTALL_CMD="true" \
+  BUILD_CMD="./fake-build.sh" \
+  DIST_DIR="$sandbox/site/dist" \
+  BUILD_DIR="$sandbox/site/build" \
+  SITE_BASE="docs/../.." \
+    "$SCRIPT" > "$sandbox/run.log" 2>&1 || rc=$?
+  if [ "$rc" -ne 0 ] && grep -q "SITE_BASE" "$sandbox/run.log"; then
+    PASS=$((PASS + 1))
+  else
+    echo "  FAIL: SITE_BASE with '..' segments was not rejected (rc=$rc)" >&2
+    FAIL=$((FAIL + 1))
+  fi
+}
+
+# --- Scenario 9: a build that writes nothing fails, even over stale output --
+#
+# Tags cut before a site honored DIST_DIR build "successfully" into the
+# generator's default output dir. Leftover output from an earlier run must
+# not mask that.
+
+scenario_missing_output() {
+  local sandbox rc
+  sandbox="$(mktemp -d)"
+  # shellcheck disable=SC2064  # capture sandbox path at trap-set time on purpose
+  trap "rm -rf $sandbox" RETURN
+  make_sandbox "$sandbox"
+
+  mkdir -p "$sandbox/site/dist/0.9"
+  echo stale > "$sandbox/site/dist/0.9/index.html"
+
+  rc=0
+  REPO_URL="file://$sandbox/site" \
+  INSTALL_CMD="true" \
+  BUILD_CMD="true" \
+  DIST_DIR="$sandbox/site/dist" \
+  BUILD_DIR="$sandbox/site/build" \
+    "$SCRIPT" > "$sandbox/run.log" 2>&1 || rc=$?
+
+  if [ "$rc" -ne 0 ] && grep -q "build of '0.9' (v0.9) wrote no" "$sandbox/run.log"; then
+    PASS=$((PASS + 1))
+  else
+    echo "  FAIL: no-op build of 0.9 did not fail with a clear message (rc=$rc)" >&2
+    FAIL=$((FAIL + 1))
+  fi
+}
+
+# --- Scenario 10: default BUILD_DIR stays out of the site's tree ------------
+#
+# `./build` is a common source directory name. Without an explicit BUILD_DIR
+# the orchestrator must clone into a temp dir and leave the repo untouched.
+
+scenario_default_build_dir() {
+  local sandbox
+  sandbox="$(mktemp -d)"
+  # shellcheck disable=SC2064  # capture sandbox path at trap-set time on purpose
+  trap "rm -rf $sandbox" RETURN
+  make_sandbox "$sandbox"
+
+  mkdir -p "$sandbox/site/build/0.9"
+  echo keep > "$sandbox/site/build/0.9/page.md"
+
+  REPO_URL="file://$sandbox/site" \
+  INSTALL_CMD="true" \
+  BUILD_CMD="./fake-build.sh" \
+  DIST_DIR="$sandbox/site/dist" \
+    "$SCRIPT" >/dev/null
+
+  assert_file "$sandbox/site/dist/0.9/index.html"
+  assert_file "$sandbox/site/build/0.9/page.md"
+}
+
 run_scenario "default settings"         scenario_default
 run_scenario "with SITE_BASE prefix"    scenario_site_base
 run_scenario "empty deploy-versions"    scenario_empty_versions
@@ -392,6 +503,9 @@ run_scenario "SHA cache hit/miss"       scenario_cache
 run_scenario "annotated tags peel SHA"  scenario_annotated_tag
 run_scenario "nested-page switcher"     scenario_nested_pages
 run_scenario "NEXT_LABEL custom"        scenario_next_label
+run_scenario "invalid manifest"         scenario_invalid_manifest
+run_scenario "missing build output"     scenario_missing_output
+run_scenario "default BUILD_DIR"        scenario_default_build_dir
 
 echo
 echo "results: $PASS passed, $FAIL failed"

@@ -11,8 +11,8 @@
     "properties": {
       "key": {
         "type": "string",
-        "description": "URL slug for this version. Becomes a path segment in the deployed site and the value of SITE_VERSION_KEY at build time.",
-        "pattern": "^[a-zA-Z0-9._-]+$"
+        "description": "URL slug for this version. Becomes a path segment in the deployed site and the value of SITE_VERSION_KEY at build time. Must be unique, must not equal the HEAD key (`next` by default), and must start with a letter or digit so it can never resolve to `.` or `..`.",
+        "pattern": "^[a-zA-Z0-9][a-zA-Z0-9._-]*$"
       },
       "ref": {
         "type": "string",
