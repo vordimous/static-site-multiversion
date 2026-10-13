@@ -22,7 +22,7 @@
 #
 # Skipped if the page already has a dropdown (any of):
 #   #version-switcher    .vp-version-menu    .vp-navbar-dropdown
-#   .dropdown-toggle     .dropdown__menu     .navbar__items--right .dropdown
+#   .dropdown-toggle     .dropdown__menu
 #
 # These markers cover the bolted shim plus the native nav-bar dropdowns
 # of vitepress, vuepress, mkdocs, and docusaurus. plain-html / eleventy /
@@ -55,7 +55,6 @@ vp-version-menu
 vp-navbar-dropdown
 dropdown-toggle
 dropdown__menu
-navbar__items--right
 EOF
 
 has_dropdown() {
@@ -89,9 +88,10 @@ while IFS= read -r -d '' file; do
     no_body=$((no_body + 1))
     continue
   fi
-  # Use a single-pass perl to avoid sed/BSD-vs-GNU portability issues
-  # with the in-place flag.
-  SNIPPET="$SNIPPET" perl -i -pe 's{</body>}{$ENV{SNIPPET}</body>} unless $done++' "$file"
+  # perl rather than sed to avoid BSD-vs-GNU differences in the in-place
+  # flag. -0777 reads the whole file as one record, so the match works no
+  # matter which line </body> is on; the greedy (.*) targets the last one.
+  SNIPPET="$SNIPPET" perl -0777 -i -pe 's{(.*)</body>}{$1$ENV{SNIPPET}</body>}s' "$file"
   injected=$((injected + 1))
 done < <(find "$OUT_DIR" -type f -name '*.html' -print0)
 

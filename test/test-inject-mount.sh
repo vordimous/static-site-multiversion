@@ -35,7 +35,7 @@ echo
 echo "scenario: pages under /docs/1.0"
 out="$sandbox/docs/1.0"
 mkdir -p "$out/sub"
-echo '<html><body><p>plain</p></body></html>' > "$out/index.html"
+printf '<html>\n<body>\n<p>multi-line</p>\n</body>\n</html>\n' > "$out/index.html"
 echo '<html><body><p>nested</p></body></html>' > "$out/sub/page.html"
 echo '<html><body><div class="vp-version-menu"></div></body></html>' > "$out/native.html"
 echo '<html><p>no body tag</p></html>' > "$out/fragment.html"
