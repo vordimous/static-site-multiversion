@@ -11,40 +11,21 @@ const versions = ref([{ key: 'current', label: 'current' }])
 const open = ref(false)
 
 // VitePress sets import.meta.env.BASE_URL to the build-time `base` config
-// (e.g. /vitepress/next/). The per-builder root (one level up) is what we
-// fetch versions.json from and what we link version slugs against.
+// (e.g. /vitepress/next/). Its last segment is this build's version key and
+// the rest is the per-builder root that holds versions.json and every
+// version dir. Reading both from the build rather than matching URL segments
+// against keys stays correct when SITE_BASE or a page slug equals a key.
 const buildBase = import.meta.env.BASE_URL || '/'
 const builderBase = buildBase.replace(/[^/]+\/$/, '') || '/'
-const buildKey = (() => {
-  const m = buildBase.match(/([^/]+)\/$/)
-  return m ? m[1] : 'next'
-})()
-
-const baseAndKey = computed(() => {
-  const segs = (typeof window === 'undefined' ? buildBase : window.location.pathname)
-    .split('/')
-    .filter(Boolean)
-  const keys = versions.value.map(v => v.key)
-  // Try to match the URL segment against a known key; otherwise fall back
-  // to the build-time key (which the orchestrator put in the path).
-  const idx = segs.findIndex(s => keys.includes(s))
-  if (idx >= 0) {
-    return {
-      base: '/' + segs.slice(0, idx).join('/') + (idx === 0 ? '' : '/'),
-      key: segs[idx],
-    }
-  }
-  return { base: builderBase, key: buildKey }
-})
+const buildKey = buildBase.match(/([^/]+)\/$/)?.[1] ?? 'next'
 
 const currentLabel = computed(() => {
-  const { key } = baseAndKey.value
-  const match = versions.value.find(v => v.key === key)
-  return match ? (match.label || match.key) : key
+  const match = versions.value.find(v => v.key === buildKey)
+  return match ? (match.label || match.key) : buildKey
 })
 
 function urlFor(key) {
-  return `${baseAndKey.value.base}${key}/`
+  return `${builderBase}${key}/`
 }
 
 function close() {
@@ -54,7 +35,7 @@ function close() {
 onMounted(async () => {
   document.addEventListener('click', close)
   try {
-    const r = await fetch(`${baseAndKey.value.base}versions.json`, { cache: 'no-cache' })
+    const r = await fetch(`${builderBase}versions.json`, { cache: 'no-cache' })
     if (r.ok) {
       const data = await r.json()
       if (Array.isArray(data) && data.length) versions.value = data
@@ -75,13 +56,17 @@ onUnmounted(() => {
       {{ currentLabel }}
       <span class="caret" aria-hidden="true">▾</span>
     </button>
+    <!-- target="_self" opts the links out of VitePress's client router, which
+         would otherwise resolve another version's URL inside this build and
+         render its 404 page. -->
     <div v-if="open" class="popover" role="menu">
       <a
         v-for="v in versions"
         :key="v.key"
         class="item"
         :href="urlFor(v.key)"
-        :data-current="v.key === baseAndKey.key"
+        target="_self"
+        :data-current="v.key === buildKey"
       >
         {{ v.label || v.key }}
       </a>

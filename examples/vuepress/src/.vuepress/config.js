@@ -92,11 +92,23 @@ const switcherHrefFix = `(function () {
     if (!anchors.length || ITEMS.length === 0) return;
     anchors.forEach(function (a, i) {
       var item = ITEMS[i % ITEMS.length];
-      if (item) a.setAttribute('href', item.href);
+      if (item && a.getAttribute('href') !== item.href) a.setAttribute('href', item.href);
     });
   }
-  // Periodic in case Vue re-renders (e.g. on color-mode toggle).
-  setInterval(fix, 500);
+  // Vue re-renders the nav after hydration and on color-mode or route
+  // changes, rewriting the hrefs. Re-patch on those DOM changes only; the
+  // equality check above keeps our own writes from re-triggering the observer.
+  function start() {
+    fix();
+    new MutationObserver(fix).observe(document.body, {
+      subtree: true,
+      childList: true,
+      attributes: true,
+      attributeFilter: ['href'],
+    });
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start);
+  else start();
 })();`
 
 // Patching the DOM href is enough for `<a>.href` reads but vue-router
