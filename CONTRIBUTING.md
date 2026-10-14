@@ -30,7 +30,7 @@ Run the suite with:
 scripts/test.sh
 ```
 
-It exercises `scripts/build-versions.sh` against a synthetic git repo using `test/fake-build.sh` as the builder. New tests go under `test/test-*.sh` and are picked up automatically.
+It exercises `scripts/build-versions.sh` against a synthetic git repo using `test/fake-build.sh` as the builder, tests `scripts/inject-mount.sh`, and runs `scripts/switcher.js` in headless Chromium via Playwright. Run `npm ci && npx playwright install chromium` once before the browser test. New tests go under `test/test-*.sh` and are picked up automatically.
 
 `shellcheck scripts/*.sh test/*.sh` should pass clean before merging.
 

@@ -18,6 +18,16 @@ jobs:
           git --version
           jq --version
 
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install Playwright for the switcher browser test
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
+
       - name: Run repo tests
         run: scripts/test.sh
 

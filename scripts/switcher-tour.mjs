@@ -82,6 +82,7 @@ async function readMenu(b, kind) {
         value: o.value,
         label: o.textContent.trim(),
         selected: o.selected,
+        key: o.value,
         // For bolted-on selects we synthesize the navigation URL from the
         // current pathname swapping the version segment.
         href: null,
@@ -106,11 +107,13 @@ async function readMenu(b, kind) {
           const u = new URL(e.href, currentUrl)
           selected = u.pathname.replace(/\/$/, '') === new URL(currentUrl).pathname.replace(/\/$/, '')
         } catch {}
+        const abs = new URL(e.href || href, currentUrl)
         out.push({
           value: href,
           label: e.textContent.trim(),
           selected,
-          href: new URL(e.href || href, currentUrl).toString(),
+          key: abs.pathname.split('/').filter(Boolean).pop(),
+          href: abs.toString(),
         })
       }
       return out
@@ -125,16 +128,18 @@ function normalizePath(p) {
   return (p || '').replace(/\/index\.html$/, '/').replace(/\/+$/, '') || '/'
 }
 
-// Clicks the dropdown item that corresponds to `opt`, dispatching a
+// Clicks the dropdown item for version `opt.key`, dispatching a
 // real change/click event so the page navigates exactly the way a
 // human-driven click would. Bolted-on <select>s navigate via their
 // change handler; native nav dropdowns navigate via the anchor's
 // default click action. For native, opens the trigger only if no
 // items are already attached — re-clicking a button-toggle trigger
-// would close the open menu.
+// would close the open menu. Items are matched by version key, not by
+// href, because the menu read on /next/ can be native while a historical
+// page carries the injected <select>, or the reverse.
 async function clickItem(b, kind, opt) {
   if (kind === 'bolted') {
-    await page.selectOption('#version-switcher select', opt.value)
+    await page.selectOption('#version-switcher select', opt.key)
     return
   }
   let items = page.locator(b.native.item)
@@ -148,12 +153,13 @@ async function clickItem(b, kind, opt) {
   for (let i = 0; i < count; i++) {
     const item = items.nth(i)
     const href = await item.getAttribute('href')
-    if (href === opt.value) {
+    const key = new URL(href, page.url()).pathname.split('/').filter(Boolean).pop()
+    if (key === opt.key) {
       await item.click()
       return
     }
   }
-  throw new Error(`menu item not found for href=${opt.value}`)
+  throw new Error(`menu item not found for key=${opt.key}`)
 }
 
 // For bolted-on selects, derive each version's URL by swapping the
@@ -274,7 +280,7 @@ for (const b of BUILDERS) {
     const dropdownPresent = (await detectKind(b)) !== null
 
     visits.push({
-      key: opt.value,
+      key: opt.key,
       url: opt.href,
       expectedPath,
       actualPath,

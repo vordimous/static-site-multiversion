@@ -11,16 +11,18 @@
 # from nested pages, not just the per-version landing.
 #
 # Usage:
-#   scripts/inject-mount.sh <out_dir> <url_base>
+#   scripts/inject-mount.sh <out_dir> <url_base> [next_key]
 #
 # Args:
 #   out_dir   per-version output directory, e.g. .demo/_serve/eleventy/0.9
 #   url_base  absolute URL prefix this per-version dir is served at,
 #             e.g. /eleventy/0.9 (local) or /static-site-multiversion/eleventy/0.9 (Pages)
+#   next_key  version key of the HEAD build, used for the fallback link
+#             (default: next)
 #
 # Skipped if the page already has a dropdown (any of):
 #   #version-switcher    .vp-version-menu    .vp-navbar-dropdown
-#   .dropdown-toggle     .dropdown__menu     .navbar__items--right .dropdown
+#   .dropdown-toggle     .dropdown__menu
 #
 # These markers cover the bolted shim plus the native nav-bar dropdowns
 # of vitepress, vuepress, mkdocs, and docusaurus. plain-html / eleventy /
@@ -31,16 +33,18 @@ set -euo pipefail
 
 OUT_DIR="${1:?inject-mount: out_dir required}"
 URL_BASE="${2:?inject-mount: url_base required}"
+NEXT_KEY="${3:-next}"
 
 [ -d "$OUT_DIR" ] || { echo "inject-mount: $OUT_DIR not a directory" >&2; exit 1; }
 
 # Builder root one level up from the per-version dir. canonical /
-# fallback live at <builder>/versions.json and <builder>/next/.
+# fallback live at <builder>/versions.json and <builder>/next/. Empty when
+# there is no SITE_BASE, so the joins below yield /versions.json rather than
+# the protocol-relative //versions.json.
 BUILDER_BASE="${URL_BASE%/*}"
-[ -n "$BUILDER_BASE" ] || BUILDER_BASE="/"
 
 CANONICAL="$BUILDER_BASE/versions.json"
-FALLBACK="$BUILDER_BASE/next/"
+FALLBACK="$BUILDER_BASE/$NEXT_KEY/"
 SCRIPT_SRC="$URL_BASE/switcher.js"
 
 # Markers any of which means "this page already has a working dropdown".
@@ -51,7 +55,6 @@ vp-version-menu
 vp-navbar-dropdown
 dropdown-toggle
 dropdown__menu
-navbar__items--right
 EOF
 
 has_dropdown() {
@@ -85,9 +88,10 @@ while IFS= read -r -d '' file; do
     no_body=$((no_body + 1))
     continue
   fi
-  # Use a single-pass perl to avoid sed/BSD-vs-GNU portability issues
-  # with the in-place flag.
-  SNIPPET="$SNIPPET" perl -i -pe 's{</body>}{$ENV{SNIPPET}</body>} unless $done++' "$file"
+  # perl rather than sed to avoid BSD-vs-GNU differences in the in-place
+  # flag. -0777 reads the whole file as one record, so the match works no
+  # matter which line </body> is on; the greedy (.*) targets the last one.
+  SNIPPET="$SNIPPET" perl -0777 -i -pe 's{(.*)</body>}{$1$ENV{SNIPPET}</body>}s' "$file"
   injected=$((injected + 1))
 done < <(find "$OUT_DIR" -type f -name '*.html' -print0)
 

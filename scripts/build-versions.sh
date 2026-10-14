@@ -12,17 +12,17 @@
 #
 # Optional env (with defaults):
 #   DEPLOY_VERSIONS     path to deploy-versions.json   (default: deploy-versions.json)
-#   VERSIONS_MANIFEST   path inside site to the
-#                       version-switcher manifest      (default: src/versions.json)
 #   DIST_DIR            shared output directory        (default: $PWD/dist)
-#   BUILD_DIR           where historical clones land   (default: $PWD/build)
+#   BUILD_DIR           where historical clones land   (default: a temp dir,
+#                                                       removed on exit)
 #   SITE_BASE           URL path prefix, if any        (default: empty)
 #   INSTALL_CMD         install command per version    (default: pnpm install)
 #   BUILD_CMD           build command per version      (default: pnpm build)
 #   NEXT_KEY            version key for HEAD           (default: next)
 #   NEXT_LABEL          dropdown label for HEAD        (default: $NEXT_KEY)
 #   SWITCHER_JS         path to switcher.js to copy
-#                       into each per-version output   (default: $script_dir/switcher.js)
+#                       into each per-version output;
+#                       set to empty to disable        (default: $script_dir/switcher.js)
 #   CACHE_DIR           SHA-keyed artifact cache root  (default: empty = disabled)
 #
 # INSTALL_CMD and BUILD_CMD are passed through `eval`, so they accept full
@@ -34,17 +34,17 @@
 # Builder contract: each build must honor SITE_VERSION_KEY and DIST_DIR (and
 # SITE_BASE when set), writing output to:
 #   $DIST_DIR/[$SITE_BASE/]$SITE_VERSION_KEY/
+# A build that leaves no index.html there fails the run.
 #
 # Versioning model:
 #   - Each version's source `versions.json` (e.g. src/versions.json) is the
-#     "seed" snapshot of versions known at build time. The orchestrator no
-#     longer overwrites it; historical clones keep their committed seed.
-#   - After all per-version builds, the orchestrator writes the MERGED list
-#     (seed + deploy-versions) to $DIST_DIR/[$SITE_BASE/]versions.json. This
-#     is the "canonical" runtime list — switcher shims (scripts/switcher.js
-#     mode=runtime|hybrid) fetch ../versions.json to discover newer versions
-#     added after their build.
-#   - SWITCHER_JS, if present, is copied into every per-version output dir
+#     "seed" snapshot of versions known at build time. The orchestrator never
+#     reads or rewrites it; historical clones keep their committed seed.
+#   - After all per-version builds, the orchestrator writes the canonical
+#     list (deploy-versions + a HEAD entry) to $DIST_DIR/[$SITE_BASE/]versions.json.
+#     Switcher shims (scripts/switcher.js mode=runtime|hybrid) fetch it to
+#     discover newer versions added after their own build.
+#   - SWITCHER_JS, if set, is copied into every per-version output dir
 #     so each version's <script src="./switcher.js"> resolves locally.
 
 set -euo pipefail
@@ -54,26 +54,63 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
 DEPLOY_VERSIONS="${DEPLOY_VERSIONS:-deploy-versions.json}"
-VERSIONS_MANIFEST="${VERSIONS_MANIFEST:-src/versions.json}"
 DIST_DIR="${DIST_DIR:-$PWD/dist}"
-BUILD_DIR="${BUILD_DIR:-$PWD/build}"
+BUILD_DIR="${BUILD_DIR:-}"
 SITE_BASE="${SITE_BASE:-}"
 INSTALL_CMD="${INSTALL_CMD:-pnpm install}"
 BUILD_CMD="${BUILD_CMD:-pnpm build}"
 NEXT_KEY="${NEXT_KEY:-next}"
 NEXT_LABEL="${NEXT_LABEL:-$NEXT_KEY}"
-SWITCHER_JS="${SWITCHER_JS:-$SCRIPT_DIR/switcher.js}"
+SWITCHER_JS="${SWITCHER_JS-$SCRIPT_DIR/switcher.js}"
 CACHE_DIR="${CACHE_DIR:-}"
 
-if [ ! -f "$DEPLOY_VERSIONS" ]; then
-  echo "build-versions: $DEPLOY_VERSIONS not found" >&2
+die() {
+  echo "build-versions: $*" >&2
+  exit 1
+}
+
+[ -f "$DEPLOY_VERSIONS" ] || die "$DEPLOY_VERSIONS not found"
+
+# Keys and SITE_BASE segments become directory names that get `rm -rf`d, so
+# anything that could resolve outside $DIST_DIR or $BUILD_DIR (".", "..",
+# absolute paths, empty segments) is rejected before any filesystem work.
+# Keep SEGMENT_RE in sync with schemas/deploy-versions.schema.json.
+SEGMENT_RE='[A-Za-z0-9][A-Za-z0-9._-]*'
+
+[[ "$NEXT_KEY" =~ ^${SEGMENT_RE}$ ]] || die "NEXT_KEY '$NEXT_KEY' must match ^${SEGMENT_RE}\$"
+
+if [ -n "$SITE_BASE" ] && ! [[ "$SITE_BASE" =~ ^${SEGMENT_RE}(/${SEGMENT_RE})*$ ]]; then
+  die "SITE_BASE '$SITE_BASE' must be one or more '/'-separated segments matching ^${SEGMENT_RE}\$"
+fi
+
+manifest_errors="$(jq -r --arg re "^${SEGMENT_RE}\$" --arg next "$NEXT_KEY" '
+  if type != "array" then "top level must be an array"
+  else
+    (to_entries[] | .key as $i | .value
+      | if type != "object" then "entry \($i): must be an object"
+        elif (.key | type) != "string" or (.key | test($re) | not) then "entry \($i): key \(.key | tojson) must match \($re)"
+        elif (.ref | type) != "string" or .ref == "" then "entry \($i): ref must be a non-empty string"
+        elif .key == $next then "entry \($i): key \(.key | tojson) is reserved for the HEAD build (NEXT_KEY)"
+        else empty end),
+    ([.[] | objects | .key | strings] | group_by(.) | .[] | select(length > 1) | "duplicate key \(.[0] | tojson)")
+  end
+' "$DEPLOY_VERSIONS")" || die "$DEPLOY_VERSIONS is not valid JSON"
+
+if [ -n "$manifest_errors" ]; then
+  while IFS= read -r err; do
+    echo "build-versions: $DEPLOY_VERSIONS: $err" >&2
+  done <<< "$manifest_errors"
   exit 1
 fi
 
-if [ ! -f "$VERSIONS_MANIFEST" ]; then
-  echo "build-versions: $VERSIONS_MANIFEST not found" >&2
-  exit 1
+OWNED_BUILD_DIR=""
+if [ -z "$BUILD_DIR" ]; then
+  BUILD_DIR="$(mktemp -d -t ssm-build.XXXXXX)"
+  OWNED_BUILD_DIR="$BUILD_DIR"
 fi
+
+MERGED_MANIFEST="$(mktemp -t merged-versions.XXXXXX)"
+trap 'rm -rf "$MERGED_MANIFEST" ${OWNED_BUILD_DIR:+"$OWNED_BUILD_DIR"}' EXIT
 
 mkdir -p "$DIST_DIR" "$BUILD_DIR"
 
@@ -88,15 +125,20 @@ mkdir -p "$output_root"
 # Resolves the per-key output dir under the output root.
 key_outdir() { printf '%s/%s' "$output_root" "$1"; }
 
+# Fails the run when a build exits 0 but wrote nothing where the contract
+# says it should, e.g. a tag cut before the builder honored DIST_DIR.
+require_output() {
+  local key="$1" ref="$2" out
+  out="$(key_outdir "$key")"
+  [ -f "$out/index.html" ] || die "build of '$key' ($ref) wrote no $out/index.html. The builder must honor SITE_VERSION_KEY and DIST_DIR (and SITE_BASE when set)."
+}
+
 # 1. Compose the canonical manifest. This is the list switcher shims fetch
 #    at runtime, so it lists every navigable version: deploy-versions.json
 #    entries (the historical tags/branches) plus a `next` entry for HEAD.
-#    The example's own seed (`$VERSIONS_MANIFEST`) is left untouched and is
-#    NOT merged in — the seed is the page's own per-build snapshot, which
-#    doesn't map to a navigable URL on its own (it typically reads "current"
-#    or similar self-reference).
-MERGED_MANIFEST="$(mktemp -t merged-versions.XXXXXX)"
-trap 'rm -f "$MERGED_MANIFEST"' EXIT
+#    Per-site seed files are not merged in: a seed is the page's own
+#    per-build snapshot and typically holds a non-navigable self-reference
+#    such as "current".
 NEXT_ENTRY="$(jq -nc --arg k "$NEXT_KEY" --arg l "$NEXT_LABEL" '[{ key: $k, label: $l }]')"
 jq -s '.[0] + .[1]' "$DEPLOY_VERSIONS" <(printf '%s' "$NEXT_ENTRY") > "$MERGED_MANIFEST"
 
@@ -139,7 +181,7 @@ inject_mount() {
     url_base="/$key"
   fi
   if [ -x "$SCRIPT_DIR/inject-mount.sh" ]; then
-    "$SCRIPT_DIR/inject-mount.sh" "$out" "$url_base" || true
+    "$SCRIPT_DIR/inject-mount.sh" "$out" "$url_base" "$NEXT_KEY" || true
   fi
 }
 
@@ -153,6 +195,7 @@ while IFS= read -r row; do
   ref=$(echo "$row" | base64 --decode | jq -r '.ref')
 
   out_dir="$(key_outdir "$key")"
+  sha=""
 
   if [ -n "$CACHE_DIR" ]; then
     sha="$(resolve_sha "$ref")"
@@ -175,25 +218,27 @@ while IFS= read -r row; do
   git -c advice.detachedHead=false clone --quiet --depth 1 -b "$ref" "$REPO_URL" "$BUILD_DIR/$key"
 
   echo "build-versions: building $key"
+  rm -rf "$out_dir"
   (
     cd "$BUILD_DIR/$key"
     # shellcheck disable=SC2030  # subshell-scoped on purpose
     export SITE_VERSION_KEY="$key"
     export SITE_BASE
     export DIST_DIR
-    # Export the merged manifest path so build-time configs (e.g. baked-mode
-    # navbar dropdowns in VuePress / Docusaurus) can read it for static
-    # injection. Each clone uses its own ./deploy-versions.json from the tag.
+    # Build-time configs (e.g. baked-mode navbar dropdowns in VuePress /
+    # Docusaurus) read the version list from here. Each clone uses its own
+    # ./deploy-versions.json from the tag.
     # shellcheck disable=SC2030  # subshell-scoped on purpose
     export DEPLOY_VERSIONS="$BUILD_DIR/$key/deploy-versions.json"
     eval "$INSTALL_CMD"
     eval "$BUILD_CMD"
   )
+  require_output "$key" "$ref"
 
   copy_switcher "$key"
   inject_mount "$key"
 
-  if [ -n "$CACHE_DIR" ] && [ -n "${sha:-}" ] && [ -d "$out_dir" ]; then
+  if [ -n "$sha" ]; then
     cache_path="$CACHE_DIR/$sha/$key"
     rm -rf "$cache_path"
     mkdir -p "$cache_path"
@@ -209,19 +254,20 @@ done < <(jq -rc '.[] | @base64' "$DEPLOY_VERSIONS")
 echo "build-versions: building HEAD as $NEXT_KEY"
 # shellcheck disable=SC2031  # reads the orchestrator-scope value, before any historical-loop subshell ran
 HEAD_DEPLOY_VERSIONS="$DEPLOY_VERSIONS"
+rm -rf "$(key_outdir "$NEXT_KEY")"
 (
   cd "$WRKDIR"
   # shellcheck disable=SC2031  # subshell-scoped on purpose
   export SITE_VERSION_KEY="$NEXT_KEY"
   export SITE_BASE
   export DIST_DIR
-  # Same DEPLOY_VERSIONS export as the historical builds — baked-mode
-  # configs read this to bake the version dropdown at build time. For
-  # HEAD this is the input deploy-versions path passed to the orchestrator.
+  # Same DEPLOY_VERSIONS export as the historical builds. For HEAD this is
+  # the input deploy-versions path passed to the orchestrator.
   # shellcheck disable=SC2031  # subshell-scoped on purpose
   export DEPLOY_VERSIONS="$HEAD_DEPLOY_VERSIONS"
   eval "$BUILD_CMD"
 )
+require_output "$NEXT_KEY" HEAD
 copy_switcher "$NEXT_KEY"
 inject_mount "$NEXT_KEY"
 

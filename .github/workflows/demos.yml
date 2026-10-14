@@ -64,11 +64,15 @@ jobs:
       - name: Install mkdocs
         run: pip install mkdocs
 
+      # Per-run key plus restore-keys: actions/cache never overwrites an
+      # existing key, so a fixed key would stop saving newly built tags.
       - name: Cache historical artifact builds
         uses: actions/cache@v4
         with:
           path: .cache
-          key: demo-cache-v1-${{ runner.os }}
+          key: demo-cache-v1-${{ runner.os }}-${{ github.run_id }}
+          restore-keys: |
+            demo-cache-v1-${{ runner.os }}-
 
       - name: Build all demos via orchestrator
         env:

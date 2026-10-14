@@ -45,16 +45,19 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # SHA-keyed cache. The runner key needs to bust when CI image or tooling
-      # changes; the per-tag SHAs live inside the cache directory and don't
-      # belong in the cache key. Bump v1 -> v2 to invalidate the whole cache.
+      # SHA-keyed cache. The per-tag SHAs live inside the cache directory, so
+      # they don't belong in the key. actions/cache never overwrites an
+      # existing key, so a fixed key would freeze the cache at its first save
+      # and every tag added later would rebuild on every run. A per-run key
+      # saves a fresh copy each time and restore-keys picks up the newest.
+      # Bump v1 -> v2 to invalidate the whole cache.
       - name: Restore historical-build cache
         uses: actions/cache@v4
         with:
           path: ${{ env.CACHE_DIR }}
-          key: ssm-cache-v1-${{ runner.os }}
+          key: ssm-cache-v1-${{ runner.os }}-${{ github.run_id }}
           restore-keys: |
-            ssm-cache-v1-
+            ssm-cache-v1-${{ runner.os }}-
 
       - uses: pnpm/action-setup@v4
         with:
